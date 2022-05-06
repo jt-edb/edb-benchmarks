@@ -9,6 +9,6 @@ TAG=
 
 for C in $TERMINALS; do
 	dbt2-run-workload -a pgsql -D dbt2 -c $C -d 3600 -w 1000 -A \
-			-C $DBIPADDRESS -H $CLIENTADDRESS -L $C -n -s 100 -u -y \
+			-H $DBIPADDRESS -C $CLIENTADDRESS -L $C -n -s 100 -u -y \
 			-o ${TAG}-1000w-c${CONNECTIONS}-d${C}
 done
