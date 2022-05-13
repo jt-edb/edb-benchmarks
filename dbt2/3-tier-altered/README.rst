@@ -5,6 +5,8 @@
 Description
 ===========
 
+Characterize system performance as the number of database connections increase.
+
 This is a 3-tier client-server scenario where every emulated terminal may
 emulate any warehouse/district pair in the database without using any thinking
 or keying time.
