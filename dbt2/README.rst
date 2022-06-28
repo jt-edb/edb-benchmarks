@@ -13,3 +13,6 @@ describes each scenario further:
 
 `dbcon-scaling` - Determine throughput scalability when increasing the number
 of database connections.
+
+`warehouse-scaling` - Determine throughput scalability when increasing the
+size of the database.
