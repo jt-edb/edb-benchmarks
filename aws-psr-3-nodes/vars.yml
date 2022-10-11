@@ -1,0 +1,16 @@
+pg_port: 5444
+pg_data: "/pgdata/data"
+pg_wal: "/pgwal/wal"
+pg_owner: enterprisedb
+pgbench_database: pgbench
+pgbench_user: pgbench
+pgbench_password: "12PassW0rd"
+pgbench_client: 10
+pg_unix_socket_directory: "/var/run/edb/as{{ pg_version }}"
+efm_api_node_state: true
+efm_api_node_state_port: 5555
+efm_version: 4.4
+# OL7
+network_device: ens5
+# centos7
+#network_device: eth0

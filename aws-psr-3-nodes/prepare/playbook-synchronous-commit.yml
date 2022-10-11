@@ -1,0 +1,18 @@
+---
+- hosts: primary
+  name: Configuring synchronous_commit on primary
+  become: true
+  gather_facts: true
+
+  collections:
+    - edb_devops.edb_postgres
+
+  pre_tasks:
+    - name: Initialize the user defined variables
+      set_fact:
+        pg_postgres_conf_params:
+        - name: synchronous_commit
+          value: "{{ pg_synchronous_commit }}"
+
+  roles:
+    - role: manage_dbserver

@@ -1,0 +1,41 @@
+---
+all:
+  children:
+    client:
+      hosts:
+{% for hostname in servers.keys() %}
+{%   if servers[hostname]['type'] == 'client' %}
+        {{ hostname }}:
+          ansible_host: {{ servers[hostname]['public_ip'] }}
+          private_ip: {{ servers[hostname]['private_ip'] }}
+{%   endif %}
+{% endfor %}
+    proxy:
+      hosts:
+{% for hostname in servers.keys() %}
+{%   if servers[hostname]['type'] == 'proxy' %}
+        {{ hostname }}:
+          ansible_host: {{ servers[hostname]['public_ip'] }}
+          private_ip: {{ servers[hostname]['private_ip'] }}
+{%   endif %}
+{% endfor %}
+    primary:
+      hosts:
+{% for hostname in servers.keys() %}
+{%   if servers[hostname]['type'] == 'primary' %}
+        {{ hostname }}:
+          ansible_host: {{ servers[hostname]['public_ip'] }}
+          private_ip: {{ servers[hostname]['private_ip'] }}
+{% endif %}
+{% endfor %}
+    standby:
+      hosts:
+{% for hostname in servers.keys() %}
+{% if servers[hostname]['type'] == 'standby' %}
+        {{ hostname }}:
+          ansible_host: {{ servers[hostname]['public_ip'] }}
+          private_ip: {{ servers[hostname]['private_ip'] }}
+          upstream_node_private_ip: {{ servers['psr-pg-1']['private_ip'] }}
+          replication_type: synchronous
+{% endif %}
+{% endfor %}
