@@ -1,0 +1,118 @@
+cluster_name: MC-PSR-EFM-Test
+ssh_user: cloud-user
+#ssh_user: centos
+operating_system:
+  name: 11072022.oracle7.9.tiovit-fc503719
+  owner: 679593333241
+#  name: "CentOS 7.9.2009 x86_64"
+#  owner: 125523088429
+regions:
+  us-east-2:
+    cidr_block: 10.0.0.0/16
+    azs:
+      us-east-2b: 10.0.0.0/24
+    service_ports:
+      - port: 22
+        protocol: tcp
+        description: "SSH"
+      - port: 30000
+        protocol: tcp
+        description: "DBT-2"
+      - port: 30000
+        protocol: udp
+        description: "DBT-2"
+      - port: 5432
+        protocol: tcp
+        description: "PostgreSQL"
+      - port: 5444
+        protocol: tcp
+        description: "EPAS"
+      - port: 5555
+        protocol: tcp
+        description: "PSR-REST"
+      - port: 7800
+        protocol: tcp
+        description: "EFM-Bind"
+      - port: 7809
+        protocol: tcp
+        description: "EFM-Admin"
+
+machines:
+  psr-client-1:
+    type: client
+    region: us-east-2
+    az: us-east-2b
+    instance_type: c5.2xlarge
+    volume:
+      type: gp2
+      size_gb: 10
+      encrypted: false
+  psr-proxy-1:
+    type: proxy
+    region: us-east-2
+    az: us-east-2b
+    instance_type: c5.2xlarge
+    volume:
+      type: gp2
+      size_gb: 10
+      encrypted: false
+  psr-pg-1:
+    type: primary
+    region: us-east-2
+    az: us-east-2b
+    instance_type: r5.2xlarge
+    volume:
+      type: gp2
+      size_gb: 10
+      encrypted: false
+    additional_volumes:
+      - mount_point: /pgdata
+        size_gb: 400
+        type: io2
+        iops: 10000
+        encrypted: false
+      - mount_point: /pgwal
+        size_gb: 200
+        type: io2
+        iops: 10000
+        encrypted: false
+  psr-pg-2:
+    type: standby
+    region: us-east-2
+    az: us-east-2b
+    instance_type: r5.2xlarge
+    volume:
+      type: gp2
+      size_gb: 10
+      encrypted: false
+    additional_volumes:
+      - mount_point: /pgdata
+        size_gb: 400
+        type: io2
+        iops: 10000
+        encrypted: false
+      - mount_point: /pgwal
+        size_gb: 200
+        type: io2
+        iops: 10000
+        encrypted: false
+  psr-pg-3:
+    type: standby
+    region: us-east-2
+    az: us-east-2b
+    instance_type: r5.2xlarge
+    volume:
+      type: gp2
+      size_gb: 10
+      encrypted: false
+    additional_volumes:
+      - mount_point: /pgdata
+        size_gb: 400
+        type: io2
+        iops: 10000
+        encrypted: false
+      - mount_point: /pgwal
+        size_gb: 200
+        type: io2
+        iops: 10000
+        encrypted: false

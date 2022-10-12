@@ -1,0 +1,60 @@
+---
+- hosts: client,primary,standby,localhost
+  name: Run pgbench
+  gather_facts: true
+
+  collections:
+    - edb_devops.edb_postgres
+
+  tasks:
+    - name: Install sysstat
+      ansible.builtin.package:
+        name: sysstat
+        state: present
+      become: true
+      when: "'primary' in group_names or 'standby' in group_names"
+
+    - name: "Make sure ./pgbench_data/synchronous_commit_{{ pg_synchronous_commit }} exists on local file system"
+      ansible.builtin.file:
+        path: "./pgbench_data/synchronous_commit_{{ pg_synchronous_commit }}"
+        state: directory
+        owner: "{{ ansible_user_id }}"
+      when: inventory_hostname == 'localhost'
+      become_user: "{{ ansible_user_id }}"
+
+    - name: Start system metrics collections
+      ansible.builtin.shell: |
+        nohup sar 5 $(({{ pgbench_duration }} / 5)) > /tmp/pgbench_cpu_{{ inventory_hostname }}_{{ pgbench_client }}_{{ pgbench_duration }}.txt 2>&1&
+        nohup sar -r 5 $(({{ pgbench_duration }} / 5)) > /tmp/pgbench_memory_{{ inventory_hostname }}_{{ pgbench_client }}_{{ pgbench_duration }}.txt 2>&1&
+        nohup sar -p -d 5 $(({{ pgbench_duration }} / 5)) > /tmp/pgbench_disks_{{ inventory_hostname }}_{{ pgbench_client }}_{{ pgbench_duration }}.txt 2>&1&
+      become: true
+      when: "'primary' in group_names or 'standby' in group_names"
+
+    - name: "Start pgbench with {{ pgbench_client }} clients for {{ pgbench_duration }} seconds"
+      ansible.builtin.shell: |
+        ./run-pgbench.sh {{ pgbench_client }} {{ pgbench_duration }}
+      when: "'client' in group_names"
+      async: 180000
+      poll: 60
+
+    - name: Fetch system metrics data files
+      ansible.builtin.fetch:
+        src: "/tmp/{{ item }}"
+        dest: "./pgbench_data/synchronous_commit_{{ pg_synchronous_commit }}/{{ item }}"
+        flat: true
+      loop:
+        - "pgbench_cpu_{{ inventory_hostname }}_{{ pgbench_client }}_{{ pgbench_duration }}.txt"
+        - "pgbench_memory_{{ inventory_hostname }}_{{ pgbench_client }}_{{ pgbench_duration }}.txt"
+        - "pgbench_disks_{{ inventory_hostname }}_{{ pgbench_client }}_{{ pgbench_duration }}.txt"
+      when: "'primary' in group_names or 'standby' in group_names"
+
+    - name: Fetch pgbench data files
+      ansible.builtin.fetch:
+        src: "/tmp/{{ item }}"
+        dest: "./pgbench_data/synchronous_commit_{{ pg_synchronous_commit }}/{{ item }}"
+        flat: true
+      loop:
+        - "repl-lag_{{ pgbench_client }}_{{ pgbench_duration }}.csv"
+        - "wal-rate_{{ pgbench_client }}_{{ pgbench_duration }}.csv"
+        - "pgbench_{{ pgbench_client }}_{{ pgbench_duration }}.out"
+      when: "'client' in group_names"

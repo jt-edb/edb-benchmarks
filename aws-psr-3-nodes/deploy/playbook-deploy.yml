@@ -1,0 +1,83 @@
+---
+- hosts: all
+  name: Install EDB repository
+  become: true
+  gather_facts: true
+
+  collections:
+    - edb_devops.edb_postgres
+
+  roles:
+    - role: setup_repo
+
+- hosts: primary,standby
+  name: Install EPAS
+  become: true
+  gather_facts: true
+
+  collections:
+    - edb_devops.edb_postgres
+
+  roles:
+    - role: install_dbserver
+
+- hosts: primary
+  name: Setting up EPAS on primary
+  become: true
+  gather_facts: true
+
+  collections:
+    - edb_devops.edb_postgres
+
+  pre_tasks:
+    - name: Initialize the user defined variables
+      set_fact:
+        pg_postgres_conf_params:
+        - name: autovacuum_work_mem
+          value: "1GB"
+        - name: checkpoint_completion_target
+          value: "0.93"
+        - name: checkpoint_timeout
+          value: "30min"
+        - name: cpu_tuple_cost
+          value: "0.03"
+        - name: effective_cache_size
+          value: "48GB"
+        - name: effective_io_concurrency
+          value: "200"
+        - name: maintenance_work_mem
+          value: "1GB"
+        - name: max_parallel_maintenance_workers
+          value: "8"
+        - name: max_connections
+          value: "200"
+        - name: max_replication_slots
+          value: "10"
+        - name: max_wal_size
+          value: "100GB"
+        - name: min_wal_size
+          value: "10GB"
+        - name: random_page_cost
+          value: "1.1"
+        - name: shared_buffers
+          value: "4GB"
+        - name: wal_compression
+          value: "on"
+        - name: wal_buffers
+          value: "64MB"
+        - name: wal_sender_timeout
+          value: "20s"
+        - name: work_mem
+          value: "32MB"
+        - name: max_parallel_workers_per_gather
+          value: "8"
+        - name: edb_dynatune
+          value: "100"
+        - name: archive_mode
+          value: "off"
+        - name: max_worker_processes
+          value: "16"
+
+  roles:
+    - role: init_dbserver
+    - role: manage_dbserver

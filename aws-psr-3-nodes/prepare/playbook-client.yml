@@ -1,0 +1,30 @@
+---
+- hosts: client
+  name: Setup the client node
+  become: true
+  gather_facts: true
+
+  collections:
+    - edb_devops.edb_postgres
+
+  tasks:
+    - name: Ensure required packages are installed
+      ansible.builtin.package:
+        name:
+        - edb-as14-server-client
+        - python3-psycopg2
+      become: true
+
+    - name: Copy python scripts
+      ansible.builtin.copy:
+        src: "./files/{{ item }}"
+        dest: "{{ item }}"
+      loop:
+        - repl-lag-monitoring.py
+        - wal-rate-monitoring.py
+
+    - name: Copy run-pgbench.sh
+      ansible.builtin.template:
+        src: "./files/run-pgbench.sh"
+        dest: run-pgbench.sh
+        mode: 0755
