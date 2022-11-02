@@ -41,9 +41,15 @@
       async: 180000
       poll: 60
 
-    #################################
-    #     TODO: generate report     #
-    #################################
+    # Ignore errors because dbt2-generate-report needs better return code logic.
+    - name: Generate DBT2 report
+      ansible.builtin.command:
+        cmd: >-
+          sudo -u {{ pg_owner }} dbt2-generate-report -i /tmp/dbt2-data
+      become: true
+      async: 180000
+      poll: 60
+      ignore_errors: yes
 
     - name: Create data archive
       ansible.builtin.command:
