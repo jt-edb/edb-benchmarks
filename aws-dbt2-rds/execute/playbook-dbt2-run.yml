@@ -1,0 +1,56 @@
+---
+- hosts: dbt2_driver
+  name: Run DBT2
+  gather_facts: true
+
+  collections:
+    - edb_devops.edb_postgres
+
+  tasks:
+    - name: Load servers.yml
+      ansible.builtin.include_vars:
+        file: "{{ terraform_project_path }}/servers.yml"
+        name: infra
+
+    - name: Make sure DBT2 target data dir and archive do not exist
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      become: true
+      loop:
+        - /tmp/dbt2-data
+        - /tmp/dbt2-data.tar.gz
+
+    - name: Start dbt2-run-workload
+      ansible.builtin.command:
+        cmd: >-
+          sudo -u {{ pg_owner }} dbt2-run-workload
+            -a pgsql
+            -c {{ dbt2_connections }}
+            -C {{ infra.servers.machines["dbt2-client"].private_ip }}
+            -d {{ dbt2_duration }}
+            -D {{ infra.servers.databases.dbt2.dbname }}
+            -H {{ infra.servers.databases.dbt2.address }}
+            -n
+            -o /tmp/dbt2-data
+            -u
+            -w {{ dbt2_warehouse }}
+            -y
+      become: true
+      register: run_workload
+      async: 180000
+      poll: 60
+
+    #################################
+    #     TODO: generate report     #
+    #################################
+
+    - name: Create data archive
+      ansible.builtin.command:
+        cmd: tar cvzf /tmp/dbt2-data.tar.gz /tmp/dbt2-data
+
+    - name: Fetch DBT2 data files
+      ansible.builtin.fetch:
+        src: "/tmp/dbt2-data.tar.gz"
+        dest: "./dbt2_data/dbt2-data.tar.gz"
+        flat: true

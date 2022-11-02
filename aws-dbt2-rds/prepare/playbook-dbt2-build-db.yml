@@ -1,0 +1,28 @@
+---
+- hosts: dbt2_client
+  name: Populate DBT2 database
+  become: true
+  gather_facts: true
+
+  collections:
+    - edb_devops.edb_postgres
+
+  tasks:
+    - name: Load servers.yml
+      ansible.builtin.include_vars:
+        file: "{{ terraform_project_path }}/servers.yml"
+        name: infra
+
+    - name: Populate DBT2 database
+      ansible.builtin.command:
+        cmd: dbt2-pgsql-build-db -l {{ pg_port }} -w {{ dbt2_warehouse }} -s plpgsql -u -r
+      environment:
+        # Use fake PGDATA here in order to make dbt2-pgsql-build-db working
+        # with -r
+        DBT2PGDATA: /tmp
+        DBT2DBNAME: "{{ infra.servers.databases.dbt2.dbname }}"
+        PGPASSWORD: "{{ pg_password }}"
+        PGHOST: "{{ infra.servers.databases.dbt2.address }}"
+      become_user: "{{ pg_owner }}"
+      async: 180000
+      poll: 60
