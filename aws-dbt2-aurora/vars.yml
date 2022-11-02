@@ -1,0 +1,7 @@
+pg_port: 5432
+pg_type: PG
+pg_version: 14
+pg_owner: postgres
+pg_group: postgres
+pg_superuser: postgres
+pg_password: "12Password!"
