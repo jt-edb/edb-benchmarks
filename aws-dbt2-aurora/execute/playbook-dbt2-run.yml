@@ -36,6 +36,8 @@
             -u
             -w {{ dbt2_warehouse }}
             -y
+      environment:
+        PGHOST: "{{ infra.servers.aurora.dbt2.address }}"
       become: true
       become_user: "{{ pg_owner }}"
       register: run_workload
