@@ -1,0 +1,8 @@
+pg_port: 5432
+pg_type: PG
+pg_version: 14
+pg_owner: edb_admin
+pg_group: edb_admin
+pg_superuser: edb_admin
+pg_password: "1234567890zyx"
+pg_user_home: "/home/edb_admin"

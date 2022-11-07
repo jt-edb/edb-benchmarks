@@ -1,0 +1,16 @@
+---
+clusterArchitecture: ha
+haStandbyReplicas: 2
+provider: aws
+clusterName: dbt2
+password: 1234567890zyx
+postgresType: postgres
+postgresVersion: "14"
+region: us-east-1
+instanceType: aws:c5.4xlarge
+volumeType: io2
+volumeProperties: io2
+volumePropertySize: "50 Gi"
+volumePropertyIOPS: 5000
+networking: public
+---
