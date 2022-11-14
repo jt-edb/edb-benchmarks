@@ -36,26 +36,3 @@
         group: "{{ pg_group }}"
         mode: "0600"
       become: true
-
-- hosts: dbt2_client
-  name: Install DBT2 client
-  become: true
-  gather_facts: true
-
-  collections:
-    - edb_devops.edb_postgres
-
-  roles:
-    - role: setup_dbt2_client
-    - role: install_dbserver
-
-  tasks:
-    - name: Update /var/lib/pgsql/.pgpass
-      ansible.builtin.lineinfile:
-        path: /var/lib/pgsql/.pgpass
-        regexp: ^\*:\*:\*:postgres.*
-        line: "*:*:*:postgres:{{ pg_password }}"
-        owner: "{{ pg_owner }}"
-        group: "{{ pg_group }}"
-        mode: "0600"
-      become: true

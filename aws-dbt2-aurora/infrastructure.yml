@@ -25,21 +25,11 @@ aws:
           description: "PostgreSQL"
 
   machines:
-    dbt2-client:
-      type: dbt2-client
-      region: us-east-1
-      az: us-east-1b
-      instance_type: c5.4xlarge
-      volume:
-        type: gp2
-        size_gb: 50
-        iops: 5000
-        encrypted: false
     dbt2-driver:
       type: dbt2-driver
       region: us-east-1
       az: us-east-1b
-      instance_type: c5.4xlarge
+      instance_type: c5.9xlarge
       volume:
         type: gp2
         size_gb: 50
@@ -55,7 +45,7 @@ aws:
       count: 1
       engine: aurora-postgresql
       engine_version: 14
-      instance_type: db.t3.medium
+      instance_type: db.r5.8xlarge
       dbname: "dbt2"
       username: "postgres"
       password: "12Password!"

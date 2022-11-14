@@ -1,5 +1,5 @@
 ---
-- hosts: dbt2_client
+- hosts: dbt2_driver
   name: Populate DBT2 database
   become: true
   gather_facts: true
