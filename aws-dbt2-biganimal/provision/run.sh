@@ -13,7 +13,7 @@ PATTERN='"(.+)"'
 BAID="${BASH_REMATCH[1]}"
 
 # TODO: We're only checking if the cluster is healthy.  May need more logic to
-# handle other situations or to reply on buidlbot to time out after a certain
+# handle other situations or to reply on buildbot to time out after a certain
 # amount of time.
 RC=0
 while [ $RC -ne 1 ]; do
