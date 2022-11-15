@@ -1,11 +1,13 @@
 #!/bin/bash -eux
 
+RUNDIR=$(dirname ${BASH_SOURCE[0]})
+
 edb-terraform ${TERRAFORM_PROJECT_PATH} ../infrastructure.yml
 cd ${TERRAFORM_PROJECT_PATH}
 terraform init
 terraform apply -var-file=./terraform_vars.json -auto-approve
 
-OUTPUT=$(biganimal create-cluster --cluster-config-file ../ba-infrastructure.yml -y 2>&1)
+OUTPUT=$(biganimal create-cluster --cluster-config-file "${RUNDIR}/../ba-infrastructure.yml" -y 2>&1)
 PATTERN='"(.+)"'
 [[ $OUTPUT =~ $PATTERN ]]
 BAID="${BASH_REMATCH[1]}"
