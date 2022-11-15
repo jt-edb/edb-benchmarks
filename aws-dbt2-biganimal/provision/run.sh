@@ -13,6 +13,10 @@ PATTERN='"(.+)"'
 [[ $OUTPUT =~ $PATTERN ]]
 BAID="${BASH_REMATCH[1]}"
 
+BIGANIMALIDFILE="${TERRAFORM_PROJECT_PATH}/biganimal-id"
+
+echo "$BAID" > "${BIGANIMALIDFILE}"
+
 # TODO: We're only checking if the cluster is healthy.  May need more logic to
 # handle other situations or to reply on buildbot to time out after a certain
 # amount of time.
