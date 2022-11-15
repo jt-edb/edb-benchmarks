@@ -3,6 +3,9 @@
 RUNDIR=$(readlink -f "${BASH_SOURCE[0]}")
 RUNDIR=$(dirname "$RUNDIR")
 
+# We need the absolute path of $TERRAFORM_PROJECT_PATH in this script.
+TERRAFORM_PROJECT_PATH=$(readlink -f "${TERRAFORM_PROJECT_PATH}")
+
 edb-terraform "${TERRAFORM_PROJECT_PATH}" ../infrastructure.yml
 cd "${TERRAFORM_PROJECT_PATH}"
 terraform init
