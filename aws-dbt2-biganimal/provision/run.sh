@@ -1,6 +1,6 @@
 #!/bin/bash -eux
 
-RUNDIR=$(dirname ${BASH_SOURCE[0]})
+RUNDIR=$(dirname $(readlink -f ${BASH_SOURCE[0]}))
 
 edb-terraform ${TERRAFORM_PROJECT_PATH} ../infrastructure.yml
 cd ${TERRAFORM_PROJECT_PATH}
