@@ -1,9 +1,10 @@
 #!/bin/bash -eux
 
-RUNDIR=$(dirname $(readlink -f ${BASH_SOURCE[0]}))
+RUNDIR=$(readlink -f "${BASH_SOURCE[0]}")
+RUNDIR=$(dirname "$RUNDIR")
 
-edb-terraform ${TERRAFORM_PROJECT_PATH} ../infrastructure.yml
-cd ${TERRAFORM_PROJECT_PATH}
+edb-terraform "${TERRAFORM_PROJECT_PATH}" ../infrastructure.yml
+cd "${TERRAFORM_PROJECT_PATH}"
 terraform init
 terraform apply -var-file=./terraform_vars.json -auto-approve
 
