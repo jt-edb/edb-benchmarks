@@ -8,7 +8,31 @@ cd "${TERRAFORM_PROJECT_PATH}"
 terraform init
 terraform apply -var-file=./terraform_vars.json -auto-approve
 
-OUTPUT=$(biganimal create-cluster --cluster-config-file "${RUNDIR}/../ba-infrastructure.yml" -y 2>&1)
+BIGANIMALINFRAFILE="${TERRAFORM_PROJECT_PATH}/ba-infrastructure.yml"
+
+UNIQUEHASH=$(xxd -l 4 -c 4 -p < /dev/random)
+
+cat >> "${BIGANIMALINFRAFILE}" << EOF
+---
+clusterArchitecture: ha
+haStandbyReplicas: 1
+provider: aws
+clusterName: dbt2-${UNIQUEHASH}
+password: 1234567890zyx
+postgresType: postgres
+postgresVersion: "14"
+region: us-east-1
+instanceType: aws:r5.8xlarge
+volumeType: io2
+volumeProperties: io2
+volumePropertySize: "4096 Gi"
+volumePropertyIOPS: 64000
+networking: public
+---
+EOF
+
+# Note that biganimal cli outputs create-cluster messages to stderr.
+OUTPUT=$(biganimal create-cluster --cluster-config-file "${BIGANIMALINFRAFILE}" -y 2>&1)
 PATTERN='"(.+)"'
 [[ $OUTPUT =~ $PATTERN ]]
 BAID="${BASH_REMATCH[1]}"
