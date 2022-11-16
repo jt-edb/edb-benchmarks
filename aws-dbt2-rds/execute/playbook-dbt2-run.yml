@@ -12,6 +12,21 @@
         file: "{{ terraform_project_path }}/servers.yml"
         name: infra
 
+    # DBT-2 driver bug workaround.
+    - name: Ensure required packages are installed
+      ansible.builtin.package:
+        name:
+        - bind-utils
+      become: true
+
+    - name: Get IP address of DBaaS system
+      ansible.builtin.command:
+        cmd: >-
+          dig
+            {{ infra.servers.databases.dbt2.address }}
+            +short
+      register: address
+
     - name: Make sure DBT2 target data dir and archive do not exist
       ansible.builtin.file:
         path: "{{ item }}"
@@ -29,7 +44,7 @@
             -a pgsql
             -d {{ dbt2_duration }}
             -D {{ infra.servers.databases.dbt2.dbname }}
-            -H {{ infra.servers.databases.dbt2.address }}
+            -H {{ address.stdout_lines[-1] }}
             -n
             -o /tmp/dbt2-data
             -s 300
@@ -39,7 +54,7 @@
             -y
       environment:
         DRIVER3: "1"
-        PGHOST: "{{ infra.servers.databases.dbt2.address }}"
+        PGHOST: "{{ address.stdout_lines[-1] }}"
       become: true
       become_user: "{{ pg_owner }}"
       register: run_workload
