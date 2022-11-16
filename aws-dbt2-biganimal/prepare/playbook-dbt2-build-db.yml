@@ -26,3 +26,9 @@
       become_user: "{{ pg_owner }}"
       async: 180000
       poll: 60
+      changed_when: false
+      register: result
+
+    - name: Database build output
+      ansible.builtin.debug:
+        var: result

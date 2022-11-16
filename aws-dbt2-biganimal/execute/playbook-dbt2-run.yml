@@ -45,6 +45,12 @@
       register: run_workload
       async: 180000
       poll: 60
+      changed_when: false
+      register: result
+
+    - name: Workload execution output
+      ansible.builtin.debug:
+        var: result
 
     # Ignore errors because dbt2-generate-report needs better return code logic.
     - name: Generate DBT2 report
@@ -55,7 +61,12 @@
       become_user: "{{ pg_owner }}"
       async: 180000
       poll: 60
-      ignore_errors: yes
+      changed_when: false
+      register: result
+
+    - name: Report generation output
+      ansible.builtin.debug:
+        var: result
 
     - name: Create data archive
       ansible.builtin.command:
