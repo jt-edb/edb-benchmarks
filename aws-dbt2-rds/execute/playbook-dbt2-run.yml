@@ -12,6 +12,11 @@
         file: "{{ terraform_project_path }}/servers.yml"
         name: infra
 
+    - name: Load infrastructure.yml
+      ansible.builtin.include_vars:
+        file: "../infrastructure.yml"
+        name: structure
+
     # DBT-2 driver bug workaround.
     - name: Ensure required packages are installed
       ansible.builtin.package:
@@ -52,6 +57,7 @@
             -u
             -w {{ dbt2_warehouse }}
             -y
+            -z "RDS for PostgreSQL {{ structure.aws.databases.dbt2.instance_type }} | {{ structure.aws.databases.dbt2.volume.size_gb }} GB {{ structure.aws.databases.dbt2.volume.type }} | {{ structure.aws.databases.dbt2.volume.iops }} IOPS | driver {{ structure.aws.machines["dbt2-driver"].instance_type }} "
       environment:
         DRIVER3: "1"
         PGHOST: "{{ address.stdout_lines[-1] }}"

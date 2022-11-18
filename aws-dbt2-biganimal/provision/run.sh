@@ -31,7 +31,6 @@ volumeProperties: io2
 volumePropertySize: "4096 Gi"
 volumePropertyIOPS: 64000
 networking: public
----
 EOF
 
 # Note that biganimal cli outputs create-cluster messages to stderr.
