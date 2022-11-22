@@ -47,6 +47,7 @@
           dbt2-run-workload
             -A
             -a pgsql
+            -c {{ dbt2_connections }}
             -d {{ dbt2_duration }}
             -D {{ infra.servers.aurora.dbt2.dbname }}
             -H {{ address.stdout_lines[-1] }}
