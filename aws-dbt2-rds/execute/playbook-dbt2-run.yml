@@ -53,7 +53,7 @@
             -n
             -o /tmp/dbt2-data
             -s 300
-            -t 1
+            -t {{ dbt2_connections }}
             -u
             -w {{ dbt2_warehouse }}
             -y
