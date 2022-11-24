@@ -1,0 +1,58 @@
+---
+- hosts: primary
+  name: Init pgbench data
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Find min version
+      ansible.builtin.set_fact:
+        pg_min_version: "{{ pg_versions | min }}"
+
+    - name: Start only one PostgreSQL instance
+      ansible.builtin.command:
+        cmd: >
+          /usr/local/pgsql-{{ pg_min_version }}/bin/pg_ctl -D /pgdata/data/{{ pg_min_version }} -l /tmp/postgres.log start
+      become_user: "{{ pg_owner }}"
+
+    - name: Create the pgbench database
+      ansible.builtin.command:
+        cmd: >
+          /usr/local/pgsql-{{ pg_min_version }}/bin/createdb pgbench
+      become_user: "{{ pg_owner }}"
+
+    - name: Populate pgbench database
+      ansible.builtin.command:
+        cmd: >
+          /usr/local/pgsql-{{ pg_min_version }}/bin/pgbench -i -s {{ pgbench_scale_factor }} -q pgbench
+      become_user: "{{ pg_owner }}"
+      async: 180000
+      poll: 60
+
+    - name: Make sure {{ pg_data }}/backup exists
+      ansible.builtin.file:
+        path: "{{ pg_data }}/backup"
+        state: directory
+        owner: "{{ pg_owner }}"
+        group: "{{ pg_group }}"
+      become: true
+
+    - name: Take a backup
+      ansible.builtin.command:
+        cmd: >
+          /usr/local/pgsql-{{ pg_min_version }}/bin/pg_dump -Fd -j 4 -C -c -f {{ pg_data }}/backup -d pgbench
+      become_user: "{{ pg_owner }}"
+      async: 180000
+      poll: 60
+
+    - name: Drop pgbench DB
+      ansible.builtin.command:
+        cmd: >
+          /usr/local/pgsql-{{ pg_min_version }}/bin/dropdb pgbench
+      become_user: "{{ pg_owner }}"
+
+    - name: Stop PostgreSQL instance
+      ansible.builtin.command:
+        cmd: >
+          /usr/local/pgsql-{{ pg_min_version }}/bin/pg_ctl -D /pgdata/data/{{ pg_min_version }} -l /tmp/postgres.log stop
+      become_user: "{{ pg_owner }}"
