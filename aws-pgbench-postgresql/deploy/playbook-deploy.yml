@@ -1,0 +1,61 @@
+---
+- hosts: primary
+  name: Install PostgreSQL
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Install dependencies
+      ansible.builtin.package:
+        name: "{{ item }}"
+      loop:
+        - wget
+        - gcc
+        - make
+        - readline-devel
+        - zlib-devel
+      become: true
+
+    - name: Download PostgreSQL sources
+      ansible.builtin.command:
+        cmd: >
+          wget https://ftp.postgresql.org/pub/source/v{{ pg_version }}/postgresql-{{ pg_version }}.tar.bz2 -O /tmp/postgresql-{{ pg_version }}.tar.bz2
+      loop: "{{ pg_versions }}"
+      loop_control:
+        loop_var: pg_version
+
+    - name: Untar the archive
+      ansible.builtin.command:
+        cmd: >
+          tar xvf /tmp/postgresql-{{ pg_version }}.tar.bz2 -C /tmp
+      loop: "{{ pg_versions }}"
+      loop_control:
+        loop_var: pg_version
+
+    - name: Configure PostgreSQL compilation
+      ansible.builtin.command:
+        cmd: >
+          ./configure --prefix=/usr/local/pgsql-{{ pg_version }}
+        chdir: "/tmp/postgresql-{{ pg_version }}"
+      loop: "{{ pg_versions }}"
+      loop_control:
+        loop_var: pg_version
+
+    - name: Compile PostgreSQL
+      ansible.builtin.command:
+        cmd: >
+          make -j 72
+        chdir: "/tmp/postgresql-{{ pg_version }}"
+      loop: "{{ pg_versions }}"
+      loop_control:
+        loop_var: pg_version
+
+    - name: Install PostgreSQL binaries
+      ansible.builtin.command:
+        cmd: >
+          make install
+        chdir: "/tmp/postgresql-{{ pg_version }}"
+      loop: "{{ pg_versions }}"
+      loop_control:
+        loop_var: pg_version
+      become: true

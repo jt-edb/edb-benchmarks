@@ -1,0 +1,81 @@
+---
+- hosts: primary
+  name: Run pgbench benchmark
+  become: true
+  gather_facts: false
+
+  tasks:
+
+    - name: Increase system limits
+      ansible.builtin.lineinfile:
+        path: /etc/security/limits.d/pgbench.conf
+        line: "{{ item }}"
+        create: true
+      become: true
+      loop:
+      - "* soft nofile 10240"
+      - "* hard nofile 10240"
+
+    - name: Check if the benchmark script exists
+      ansible.builtin.stat:
+        path: /tmp/exec-pgbench-rampup.sh
+      register: stat_result
+
+    - name: Copy the benchmark script if does not exist
+      ansible.builtin.copy:
+        src: ./files/exec-pgbench-rampup.sh
+        dest: /tmp/exec-pgbench-rampup.sh
+        mode: "0755"
+      become_user: "{{ pg_owner }}"
+      when: not stat_result.stat.exists
+
+    - name: Start only one PostgreSQL instance
+      ansible.builtin.command:
+        cmd: >
+          /usr/local/pgsql-{{ pg_version }}/bin/pg_ctl -D /pgdata/data/{{ pg_version }} -l /tmp/postgres.log start
+      become_user: "{{ pg_owner }}"
+
+    - name: Restore pgbench database
+      ansible.builtin.command:
+        cmd: >
+          /usr/local/pgsql-{{ pg_version }}/bin/pg_restore -j 4 {{ pg_data }}/backup -C -d postgres
+      become_user: "{{ pg_owner }}"
+      async: 180000
+      poll: 60
+
+    - name: Vacuuming pgbench database
+      ansible.builtin.command:
+        cmd: >
+          /usr/local/pgsql-{{ pg_version }}/bin/vacuumdb -d pgbench -F -j 4 -z
+      become_user: "{{ pg_owner }}"
+      async: 180000
+      poll: 60
+
+    # Run the benchmark script
+    - name: Execute the benchmark
+      ansible.builtin.command:
+        cmd: >
+          /tmp/exec-pgbench-rampup.sh
+      become_user: "{{ pg_owner }}"
+      environment:
+        PG_VERSION: "{{ pg_version }}"
+      async: 180000
+      poll: 60
+
+    - name: Drop pgbench DB
+      ansible.builtin.command:
+        cmd: >
+          /usr/local/pgsql-{{ pg_version }}/bin/dropdb pgbench
+      become_user: "{{ pg_owner }}"
+
+    - name: Stop PostgreSQL instance
+      ansible.builtin.command:
+        cmd: >
+          /usr/local/pgsql-{{ pg_version }}/bin/pg_ctl -D /pgdata/data/{{ pg_version }} -l /tmp/postgres.log stop
+      become_user: "{{ pg_owner }}"
+
+    - name: Fetch pgbench data files
+      ansible.builtin.fetch:
+        src: "/tmp/pgbench-tps-{{ pg_version }}.csv"
+        dest: "./pgbench_data/pgbench-tps-{{ pg_version }}.csv"
+        flat: true

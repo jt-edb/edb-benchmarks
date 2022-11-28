@@ -1,0 +1,12 @@
+---
+all:
+  children:
+    primary:
+      hosts:
+{% for hostname in servers.keys() %}
+{%   if servers[hostname]['type'] == 'primary' %}
+        {{ hostname }}:
+          ansible_host: {{ servers[hostname]['public_ip'] }}
+          private_ip: {{ servers[hostname]['private_ip'] }}
+{%   endif %}
+{% endfor %}

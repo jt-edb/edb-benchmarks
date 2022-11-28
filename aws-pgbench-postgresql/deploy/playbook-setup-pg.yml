@@ -1,0 +1,85 @@
+---
+- hosts: primary
+  name: Configure PostgreSQL instances
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Create group {{ pg_group }}
+      ansible.builtin.group:
+        name: "{{ pg_group }}"
+        state: present
+
+    - name: Create user {{ pg_owner }}
+      ansible.builtin.user:
+        name: "{{ pg_owner }}"
+        state: present
+        shell: /bin/bash
+        group: "{{ pg_group }}"
+
+    - name: Make sure PGDATA exists and is owned by {{ pg_owner }}
+      ansible.builtin.file:
+        path: "{{ pg_data }}"
+        owner: "{{ pg_owner }}"
+        group: "{{ pg_group }}"
+        state: directory
+      become: true
+
+    - name: Make sure PGWAL exists and is owned by {{ pg_owner }}
+      ansible.builtin.file:
+        path: "{{ pg_wal }}"
+        owner: "{{ pg_owner }}"
+        group: "{{ pg_group }}"
+        state: directory
+      become: true
+
+    - name: Create PGDATA for each PostgreSQL version
+      ansible.builtin.file:
+        path: "{{ pg_data }}/{{ pg_version }}"
+        state: directory
+        mode: "0700"
+        owner: "{{ pg_owner }}"
+        group: "{{ pg_group }}"
+      loop: "{{ pg_versions }}"
+      loop_control:
+        loop_var: pg_version
+
+    - name: Create PGWAL for each PostgreSQL version
+      ansible.builtin.file:
+        path: "{{ pg_wal }}/{{ pg_version }}"
+        state: directory
+        mode: "0700"
+        owner: "{{ pg_owner }}"
+        group: "{{ pg_group }}"
+      loop: "{{ pg_versions }}"
+      loop_control:
+        loop_var: pg_version
+
+    - name: Execute initdb for each PostgreSQL version
+      ansible.builtin.command:
+        cmd: >
+          /usr/local/pgsql-{{ pg_version }}/bin/initdb -D {{ pg_data }}/{{ pg_version }}
+      become_user: "{{ pg_owner }}"
+      loop: "{{ pg_versions }}"
+      loop_control:
+        loop_var: pg_version
+
+    - name: Apply PostgreSQL tunning
+      ansible.builtin.lineinfile:
+        path: "{{ pg_data }}/{{ item[0] }}/postgresql.auto.conf"
+        line: "{{ item[1].name }} = '{{ item[1].value }}'"
+        create: true
+        owner: "{{ pg_owner }}"
+        group: "{{ pg_group }}"
+      with_nested:
+      - "{{ pg_versions }}"
+      - "{{ pg_settings }}"
+
+    - name: Configure PGWAL symbolic link for each PostgreSQL instance
+      ansible.builtin.shell: |
+        mv /pgdata/data/{{ pg_version }}/pg_wal/ /pgwal/wal/{{ pg_version }}/
+        ln -s /pgwal/wal/{{ pg_version }}/pg_wal /pgdata/data/{{ pg_version }}/pg_wal
+      become: true
+      loop: "{{ pg_versions }}"
+      loop_control:
+        loop_var: pg_version
