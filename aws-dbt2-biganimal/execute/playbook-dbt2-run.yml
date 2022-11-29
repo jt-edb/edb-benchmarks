@@ -46,6 +46,15 @@
         - /tmp/dbt2-data
         - /tmp/dbt2-data.tar.gz
 
+    - name: Calculate drivers per processor
+      ansible.builtin.set_fact:
+        fpp: "{{ ((dbt2_connections | int) / ansible_processor_nproc) | int  }}"
+
+    # Use dbt2_connections as a limit to the number of connections that may be
+    # opened, which are opened in units matching the number of processors on
+    # the driver system.  Also target a 45 minute (2,700,000 ms) rampup time,
+    # which is the expected time needed for a 10,000 warehouse database to warm
+    # up.
     - name: Start dbt2-run-workload
       ansible.builtin.command:
         cmd: >-
@@ -54,11 +63,12 @@
             -a pgsql
             -d {{ dbt2_duration }}
             -D {{ infra.servers.databases.dbt2.dbname }}
+            -F {{ fpp }}
             -H {{ address.stdout_lines[-1] }}
             -n
             -o /tmp/dbt2-data
-            -s 300
-            -t {{ dbt2_connections }}
+            -s {{ (2700000 / ((fpp | int) * ansible_processor_nproc)) | int }}
+            -t 1
             -u
             -w {{ dbt2_warehouse }}
             -y
