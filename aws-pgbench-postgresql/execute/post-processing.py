@@ -22,6 +22,7 @@ def main():
     max_tps = 0
 
     for pg_version in pg_versions:
+        pg_version = pg_version.strip('\'').strip('\"')
         data = pd.read_csv(
             '%s/pgbench_data/pgbench-tps-%s.csv' % (dir_path, pg_version)
         )
