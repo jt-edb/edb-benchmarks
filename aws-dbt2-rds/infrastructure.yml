@@ -49,5 +49,5 @@ aws:
       volume:
         size_gb: 4096
         type: io1
-        iops: 20000
+        iops: 64000
         encrypted: true
