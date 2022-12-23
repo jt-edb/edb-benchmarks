@@ -1,0 +1,2 @@
+\set aid random(1, {{ pgbench_accounts_count }})
+UPDATE pgbench_accounts SET abalance = abalance + 1 WHERE aid = :aid;

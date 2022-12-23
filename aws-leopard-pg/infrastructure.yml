@@ -1,0 +1,41 @@
+cluster_name: leopard-postgresql
+aws:
+  ssh_user: admin
+  operating_system:
+    name: debian-11-amd64-20221108-1193
+    owner: 136693071363
+  regions:
+    us-east-1:
+      cidr_block: 10.0.0.0/16
+      azs:
+        us-east-1b: 10.0.0.0/24
+      service_ports:
+        - port: 22
+          protocol: tcp
+          description: "SSH"
+        - port: 5432
+          protocol: tcp
+          description: "PostgreSQL"
+
+  machines:
+    postgres1:
+      type: primary
+      region: us-east-1
+      az: us-east-1b
+      instance_type: c5.4xlarge
+      volume:
+        type: gp2
+        size_gb: 50
+        iops: 5000
+        encrypted: false
+      additional_volumes:
+        - mount_point: /opt/pg_data
+          size_gb: 200
+          type: io2
+          iops: 50000
+          encrypted: false
+        - mount_point: /opt/pg_wal
+          size_gb: 200
+          type: io2
+          iops: 50000
+          encrypted: false

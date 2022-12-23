@@ -1,0 +1,123 @@
+---
+- hosts: all
+  name: Setup PostgreSQL and Leopard TAM
+  become: false
+  gather_facts: false
+
+  tasks:
+    - name: Install dependecies
+      ansible.builtin.package:
+        name: "{{ item }}"
+      loop:
+      - acl
+      - git
+      - gcc
+      - make
+      - libreadline-dev
+      - zlib1g-dev
+      - bison
+      - flex
+      - python3-psycopg2
+      become: true
+
+    - name: Make sure PostgreSQL local source tree does not exist
+      ansible.builtin.file:
+        path: "{{ pg_build_path }}"
+        state: absent
+      become: true
+
+    - name: Cloning PostgreSQL source tree
+      ansible.builtin.git:
+        repo: https://git.postgresql.org/git/postgresql.git
+        dest: "{{ pg_build_path }}"
+        single_branch: true
+        version: "REL_{{ pg_version }}_STABLE"
+
+    - name: Configure PostgreSQL build
+      ansible.builtin.command:
+        cmd: "./configure --prefix={{ pg_install_path }} --enable-debug"
+        chdir: "{{ pg_build_path }}"
+
+    - name: Building PostgreSQL binaries
+      ansible.builtin.command:
+        cmd: make -j 16
+        chdir: "{{ pg_build_path }}"
+
+    - name: Installing PostgreSQL binaries
+      ansible.builtin.command:
+        cmd: make install
+        chdir: "{{ pg_build_path }}"
+      become: true
+
+    - name: Copy leopard archive
+      ansible.builtin.copy:
+        src: "{{ leopard_src_archive }}"
+        dest: "{{ pg_build_path }}/contrib/{{ leopard_src_archive | basename }}"
+
+    - name: Extract leopard archive
+      ansible.builtin.command:
+        cmd: "tar xvzf {{ leopard_src_archive | basename }}"
+        chdir: "{{ pg_build_path }}/contrib"
+
+    - name: Compile leopard
+      ansible.builtin.command:
+        cmd: "make"
+        chdir: "{{ pg_build_path }}/contrib/leopard"
+
+    - name: Install leopard
+      ansible.builtin.command:
+        cmd: "make install"
+        chdir: "{{ pg_build_path }}/contrib/leopard"
+      become: true
+
+    - name: "Create group {{ pg_group }}"
+      ansible.builtin.group:
+        name: "{{ pg_group }}"
+        state: present
+      become: true
+
+    - name: "Create user {{ pg_owner }}"
+      ansible.builtin.user:
+        name: "{{ pg_owner }}"
+        state: present
+        shell: /bin/bash
+        group: "{{ pg_group }}"
+      become: true
+
+    - name: "Make sure PGDATA exists and is owned by {{ pg_owner }}"
+      ansible.builtin.file:
+        path: "{{ pg_data }}"
+        owner: "{{ pg_owner }}"
+        group: "{{ pg_group }}"
+        mode: "0700"
+        state: directory
+      become: true
+
+    - name: Execute initdb
+      ansible.builtin.command:
+        cmd: "{{ pg_install_path }}/bin/initdb -D {{ pg_data }}"
+      become_user: "{{ pg_owner }}"
+      become: true
+
+    - name: Apply PostgreSQL tuning
+      ansible.builtin.lineinfile:
+        path: "{{ pg_data }}/postgresql.auto.conf"
+        line: "{{ item.name }} = '{{ item.value }}'"
+        create: true
+        owner: "{{ pg_owner }}"
+        group: "{{ pg_group }}"
+      loop: "{{ pg_settings }}"
+      become_user: "{{ pg_owner }}"
+      become: true
+
+    - name: Configure PGWAL symbolic link
+      ansible.builtin.shell: |
+        mv {{ pg_data }}/pg_wal/ {{ pg_wal }}
+        ln -s {{ pg_wal }} {{ pg_data }}/pg_wal
+      become: true
+
+    - name: Starting PostgreSQL
+      ansible.builtin.command:
+        cmd: "{{ pg_install_path }}/bin/pg_ctl -D {{ pg_data }} -l {{ pg_data }}/postgresql.log start"
+      become_user: "{{ pg_owner }}"
+      become: true

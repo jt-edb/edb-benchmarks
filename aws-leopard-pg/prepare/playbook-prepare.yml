@@ -1,0 +1,79 @@
+---
+- hosts: all
+  name: Prepare Leopard TAM benchmark
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: Drop databases if they exist
+      ansible.builtin.command:
+        cmd: "{{ pg_install_path }}/bin/dropdb -f --if-exists {{ item }}"
+      loop:
+      - pgbench_heap
+      - pgbench_leopard
+      become_user: "{{ pg_owner }}"
+
+    - name: Create databases
+      ansible.builtin.command:
+        cmd: "{{ pg_install_path }}/bin/createdb {{ item }}"
+      loop:
+      - pgbench_heap
+      - pgbench_leopard
+      become_user: "{{ pg_owner }}"
+
+    - name: Copy pgbench_accounts DDL using Leopard
+      ansible.builtin.copy:
+        src: "pgbench_accounts_leopard.sql"
+        dest: "/tmp/pgbench_accounts_leopard.sql"
+
+    - name: Copy the run-benchmark.py script
+      ansible.builtin.copy:
+        src: "run-benchmark.py"
+        dest: "/tmp/run-benchmark.py"
+
+    - name: Create tables on pgbench_leopard
+      ansible.builtin.command:
+        cmd: "{{ pg_install_path }}/bin/pgbench -i -I t pgbench_leopard"
+      become_user: "{{ pg_owner }}"
+
+    - name: Create the pgbench_account table using Leopard
+      ansible.builtin.command:
+        cmd: "{{ pg_install_path }}/bin/psql -f /tmp/pgbench_accounts_leopard.sql pgbench_leopard"
+      become_user: "{{ pg_owner }}"
+
+    - name: Populate pgbench_leopard
+      ansible.builtin.command:
+        cmd: "{{ pg_install_path }}/bin/pgbench -i -s {{ pgbench_scalefactor }} -I gvp  pgbench_leopard"
+      become_user: "{{ pg_owner }}"
+      async: 180000
+      poll: 60
+
+    - name: Populate pgbench_heap
+      ansible.builtin.command:
+        cmd: "{{ pg_install_path }}/bin/pgbench -i -s {{ pgbench_scalefactor }}  pgbench_heap"
+      become_user: "{{ pg_owner }}"
+      async: 180000
+      poll: 60
+
+    - name: Force a checkpoint
+      ansible.builtin.command:
+        cmd: "{{ pg_install_path }}/bin/psql -c \"CHECKPOINT\""
+      become_user: "{{ pg_owner }}"
+      async: 180000
+      poll: 60
+
+    - name: Set pgbench_accounts_count
+      set_fact:
+        pgbench_accounts_count: "{{ pgbench_scalefactor * 100000 }}"
+
+    - name: Make sure the SQL script does not exist
+      ansible.builtin.file:
+        path: /tmp/update.sql
+        state: absent
+      become: true
+
+    - name: Copy update.sql
+      ansible.builtin.template:
+        src: update.sql.j2
+        dest: /tmp/update.sql
+      become_user: "{{ pg_owner }}"
