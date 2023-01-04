@@ -3,7 +3,8 @@
 CLIENT_START=10
 CLIENT_END=400
 CLIENT_STEP=10
-BENCHMARK_DURATION=100
+# Execute pgbench for 20mins
+BENCHMARK_DURATION=1200
 PGSQL_BIN_PATH=/usr/local/pgsql-${PG_VERSION}/bin
 
 echo "clients,${PG_VERSION}" > /tmp/pgbench-tps-${PG_VERSION}.csv
