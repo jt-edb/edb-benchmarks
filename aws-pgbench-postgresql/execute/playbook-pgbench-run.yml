@@ -55,7 +55,7 @@
     - name: Execute the benchmark
       ansible.builtin.command:
         cmd: >
-          /tmp/exec-pgbench-rampup.sh
+          /tmp/exec-pgbench-rampup.sh {{ pgbench_mode }}
       become_user: "{{ pg_owner }}"
       environment:
         PG_VERSION: "{{ pg_version }}"

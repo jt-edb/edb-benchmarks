@@ -17,6 +17,7 @@ do
 		-i ../inventory.yml \
 		-e "@../vars.yml" \
 		-e "pg_version=${version}" \
+		-e "pgbench_mode=${PGBENCH_MODE}" \
 		./playbook-pgbench-run.yml
 done
 
