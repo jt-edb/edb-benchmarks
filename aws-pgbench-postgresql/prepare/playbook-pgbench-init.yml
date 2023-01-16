@@ -5,9 +5,19 @@
   gather_facts: false
 
   tasks:
+    - name: Build the mapping dict
+      ansible.builtin.set_fact:
+        pg_versions_mapping: >
+          {{ pg_versions_mapping | default({}) |
+              combine({
+                (item | split('.'))[0] : item,
+              })
+          }}
+      loop: "{{ pg_versions }}"
+
     - name: Find min version
       ansible.builtin.set_fact:
-        pg_min_version: "{{ pg_versions | min }}"
+        pg_min_version: "{{ pg_versions_mapping[pg_versions_mapping.keys() | map('int') | min | string] }}"
 
     - name: Start only one PostgreSQL instance
       ansible.builtin.command:
@@ -40,7 +50,7 @@
     - name: Take a backup
       ansible.builtin.command:
         cmd: >
-          /usr/local/pgsql-{{ pg_min_version }}/bin/pg_dump -Fd -j 4 -C -c -f {{ pg_data }}/backup -d pgbench
+          /usr/local/pgsql-{{ pg_min_version }}/bin/pg_dump -Fd -j 4 -f {{ pg_data }}/backup -d pgbench
       become_user: "{{ pg_owner }}"
       async: 180000
       poll: 60

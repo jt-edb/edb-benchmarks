@@ -35,10 +35,22 @@
           /usr/local/pgsql-{{ pg_version }}/bin/pg_ctl -D /pgdata/data/{{ pg_version }} -l /tmp/postgres.log start
       become_user: "{{ pg_owner }}"
 
+    - name: Drop the pgbench database if exists
+      ansible.builtin.command:
+        cmd: >
+         /usr/local/pgsql-{{ pg_version }}/bin/dropdb --if-exists pgbench
+      become_user: "{{ pg_owner }}"
+
+    - name: Create the pgbench database
+      ansible.builtin.command:
+        cmd: >
+         /usr/local/pgsql-{{ pg_version }}/bin/createdb pgbench
+      become_user: "{{ pg_owner }}"
+
     - name: Restore pgbench database
       ansible.builtin.command:
         cmd: >
-          /usr/local/pgsql-{{ pg_version }}/bin/pg_restore -j 4 {{ pg_data }}/backup -C -d postgres
+          /usr/local/pgsql-{{ pg_version }}/bin/pg_restore -j 4 {{ pg_data }}/backup -d pgbench
       become_user: "{{ pg_owner }}"
       async: 180000
       poll: 60
