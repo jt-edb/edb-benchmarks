@@ -35,6 +35,16 @@
           /usr/local/pgsql-{{ pg_version }}/bin/pg_ctl -D /pgdata/data/{{ pg_version }} -l /tmp/postgres.log start
       become_user: "{{ pg_owner }}"
 
+    - name: Wait for Postgres to be ready
+      ansible.builtin.command:
+        cmd: >
+          /usr/local/pgsql-{{ pg_version }}/bin/pg_isready
+      become_user: "{{ pg_owner }}"
+      register: pg_isready
+      until: "pg_isready is not failed"
+      retries: 10
+      delay: 10
+
     - name: Drop the pgbench database if exists
       ansible.builtin.command:
         cmd: >
