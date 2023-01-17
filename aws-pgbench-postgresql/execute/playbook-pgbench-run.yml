@@ -57,6 +57,12 @@
          /usr/local/pgsql-{{ pg_version }}/bin/createdb pgbench
       become_user: "{{ pg_owner }}"
 
+    - name: Drop the public schema
+      ansible.builtin.command:
+        cmd: >
+         /usr/local/pgsql-{{ pg_version }}/bin/psql -d pgbench -c "DROP SCHEMA public"
+      become_user: "{{ pg_owner }}"
+
     - name: Restore pgbench database
       ansible.builtin.command:
         cmd: >
