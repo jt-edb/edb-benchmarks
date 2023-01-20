@@ -49,6 +49,14 @@ if __name__ == '__main__':
         type=Path,
         help="Project path.",
     )
+    parser.add_argument(
+        '--dest',
+        metavar='DEST_DIR',
+        type=Path,
+        help="Inventory destination directory.",
+        required=False,
+        default=Path(__file__).parent.resolve(),
+    )
     env = parser.parse_args()
 
     servers = load_yaml(env.project_path / 'servers.yml')
@@ -58,4 +66,4 @@ if __name__ == '__main__':
     )
 
     # Build the inventory file
-    template('inventory.yml', 'inventory.yml', vardict)
+    template('inventory.yml', env.dest / 'inventory.yml', vardict)

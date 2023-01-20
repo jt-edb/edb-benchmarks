@@ -1,5 +1,7 @@
 #!/bin/bash -eux
 
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+
 SSH_USER=rocky
 
 export ANSIBLE_PIPELINING=true
@@ -14,12 +16,12 @@ do
 	ansible-playbook \
 		-u ${SSH_USER} \
 		--private-key ${TERRAFORM_PROJECT_PATH}/ssh-id_rsa \
-		-i ../inventory.yml \
-		-e "@../vars.yml" \
+		-i ${SCRIPT_DIR}/../inventory.yml \
+		-e "@${SCRIPT_DIR}/../vars.yml" \
 		-e "pg_version=${version}" \
 		-e "pgbench_mode=${PGBENCH_MODE}" \
-		./playbook-pgbench-run.yml
+		${SCRIPT_DIR}/playbook-pgbench-run.yml
 done
 
 # Generate final data points and chart
-python3 ./post-processing.py
+python3 ${SCRIPT_DIR}/post-processing.py

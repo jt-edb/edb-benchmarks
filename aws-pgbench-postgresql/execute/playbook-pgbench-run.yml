@@ -62,6 +62,8 @@
         cmd: >
          /usr/local/pgsql-{{ pg_version }}/bin/psql -d pgbench -c "DROP SCHEMA public"
       become_user: "{{ pg_owner }}"
+      when:
+      - "(pg_version | split('.'))[0] | int > 10"
 
     - name: Restore pgbench database
       ansible.builtin.command:
