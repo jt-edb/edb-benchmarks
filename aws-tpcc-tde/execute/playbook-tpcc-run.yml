@@ -1,0 +1,139 @@
+---
+- hosts: hammerdb, primary
+  name: Run HammerDB - long run
+  gather_facts: false
+  become: true
+
+  collections:
+    - edb_devops.edb_postgres
+
+  tasks:
+    - name: Install sysstat
+      ansible.builtin.package:
+        name: sysstat
+        state: present
+      become: true
+      when: "'primary' in group_names"
+
+    - name: Set variables if using TDE
+      ansible.builtin.set_fact:
+        _pg_data: "{{ pg_data_tde }}"
+        _sar_cpu_filename: "sar_cpu_tde.txt"
+        _sar_mem_filename: "sar_mem_tde.txt"
+        _sar_disk_filename: "sar_disk_tde.txt"
+        _hdb_output_filename: "hammerdb_tde_{{ tpcc_duration }}_{{ tpcc_vusers }}.out"
+      when: "{{ use_tde | bool == true }}"
+
+    - name: Set variables if not using TDE
+      ansible.builtin.set_fact:
+        _pg_data: "{{ pg_data }}"
+        _sar_cpu_filename: "sar_cpu.txt"
+        _sar_mem_filename: "sar_mem.txt"
+        _sar_disk_filename: "sar_disk.txt"
+        _hdb_output_filename: "hammerdb_{{ tpcc_duration }}_{{ tpcc_vusers }}.out"
+      when: "{{ use_tde | bool == false }}"
+
+    - name: Set tpcc_runtimer
+      ansible.builtin.set_fact:
+        tpcc_runtimer: "{{ tpcc_rampup | int * 60 + tpcc_duration | int * 60 }}"
+
+    - name: Generate HammerDB runner script
+      ansible.builtin.template:
+        src: runner.tcl.j2
+        dest: "{{ hammerdb_data_path }}/runner.tcl"
+      when: "'hammerdb' in group_names"
+
+    - name: "Start the database with TDE={{ use_tde }}"
+      ansible.builtin.command: >
+        /usr/edb/as15/bin/pg_ctl -D {{ _pg_data }} -l {{ _pg_data }}/postgresql.log start
+      become_user: "{{ pg_owner }}"
+      when: "'primary' in group_names"
+
+    - name: Wait for Postgres to be ready
+      ansible.builtin.command:
+        cmd: >
+          /usr/edb/as15/bin/pg_isready -d postgres
+      become_user: "{{ pg_owner }}"
+      register: pg_isready
+      until: "pg_isready is not failed"
+      retries: 10
+      delay: 10
+      when: "'primary' in group_names"
+
+    - name: Drop the TPCC database if exists
+      ansible.builtin.command: >
+        /usr/edb/as15/bin/psql -d postgres -c "DROP DATABASE IF EXISTS tpcc"
+      become_user: "{{ pg_owner }}"
+      when: "'primary' in group_names"
+
+    - name: Populate the TPCC database
+      ansible.builtin.command:
+        cmd: "./hammerdbcli tcl auto {{ hammerdb_data_path }}/loader.tcl"
+        chdir: "{{ hammerdb_install_path }}"
+      async: 180000
+      poll: 60
+      changed_when: false
+      when: "'hammerdb' in group_names"
+
+    - name: CHECKPOINT
+      ansible.builtin.command: >
+        /usr/edb/as15/bin/psql -d postgres -c "CHECKPOINT"
+      become_user: "{{ pg_owner }}"
+      async: 180000
+      poll: 60
+      when: "'primary' in group_names"
+
+    - name: Start system metrics collections
+      ansible.builtin.shell: |
+        nohup sar 30 $(({{ tpcc_runtimer }} / 30)) > /tmp/{{ _sar_cpu_filename }} 2>&1&
+        nohup sar -r 30 $(({{ tpcc_runtimer }} / 30)) > /tmp/{{ _sar_mem_filename }} 2>&1&
+        nohup sar -p -d 30 $(({{ tpcc_runtimer }} / 30)) > /tmp/{{ _sar_disk_filename }} 2>&1&
+      become: true
+      when: "'primary' in group_names"
+
+    - name: Execute the long HammerDB run
+      ansible.builtin.shell: |
+        ./hammerdbcli tcl auto {{ hammerdb_data_path }}/runner.tcl > {{ hammerdb_data_path }}/{{ _hdb_output_filename }}
+      args:
+        chdir: "{{ hammerdb_install_path }}"
+      async: 180000
+      poll: 60
+      when: "'hammerdb' in group_names"
+
+    - name: Fetch data files from Postgres server
+      ansible.builtin.fetch:
+        src: "/tmp/{{ item }}"
+        dest: "./benchmark_data/{{ item }}"
+        flat: true
+      when: "'primary' in group_names"
+      register: fetch_postgres_data
+      retries: 20
+      delay: 10
+      until: fetch_postgres_data is not failed
+      become: true
+      loop:
+      - "{{ _sar_cpu_filename }}"
+      - "{{ _sar_mem_filename }}"
+      - "{{ _sar_disk_filename }}"
+
+    - name: Fetch data files from HammerDB machine
+      ansible.builtin.fetch:
+        src: "{{ hammerdb_data_path }}/{{ item }}"
+        dest: "./benchmark_data/{{ item }}"
+        flat: true
+      when: "'hammerdb' in group_names"
+      become: true
+      loop:
+      - "{{ _hdb_output_filename }}"
+
+    - name: Drop the TPCC database
+      ansible.builtin.command: >
+        /usr/edb/as15/bin/psql -d postgres -c "DROP DATABASE tpcc"
+      become_user: "{{ pg_owner }}"
+      when: "'primary' in group_names"
+
+    - name: "Stop the database with TDE={{ use_tde }}"
+      ansible.builtin.command: >
+        /usr/edb/as15/bin/pg_ctl -D {{ _pg_data }} -m immediate stop
+      become_user: "{{ pg_owner }}"
+      when: "'primary' in group_names"

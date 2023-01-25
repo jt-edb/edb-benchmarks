@@ -1,0 +1,21 @@
+---
+- hosts: all
+  name: Populate TPCC database
+  become: true
+  gather_facts: true
+
+  collections:
+    - edb_devops.edb_postgres
+
+  tasks:
+    - name: Make {{ hammerdb_data_path }} exists
+      ansible.builtin.file:
+        path: "{{ hammerdb_data_path }}"
+        state: directory
+      when: "'hammerdb' in group_names"
+
+    - name: Generate HammerDB loader script
+      ansible.builtin.template:
+        src: loader.tcl.j2
+        dest: "{{ hammerdb_data_path }}/loader.tcl"
+      when: "'hammerdb' in group_names"

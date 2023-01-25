@@ -1,0 +1,102 @@
+---
+- hosts: hammerdb, primary
+  name: Run HammerDB - rampup test
+  gather_facts: false
+  become: true
+
+  collections:
+    - edb_devops.edb_postgres
+
+  tasks:
+    - name: Set variables if using TDE
+      ansible.builtin.set_fact:
+        _pg_data: "{{ pg_data_tde }}"
+        _rampup_csv_filename: "nopm_rampup_tde.csv"
+      when: "{{ use_tde | bool == true }}"
+
+    - name: Set variables if not using TDE
+      ansible.builtin.set_fact:
+        _pg_data: "{{ pg_data }}"
+        _rampup_csv_filename: "nopm_rampup.csv"
+      when: "{{ use_tde | bool == false }}"
+
+    - name: Copy the exec-hdb-rampup.sh file
+      ansible.builtin.copy:
+        src: exec-hdb-rampup.sh
+        dest: "{{ hammerdb_data_path }}/exec-hdb-rampup.sh"
+        mode: "0755"
+      when: "'hammerdb' in group_names"
+
+    - name: "Start the database with TDE={{ use_tde }}"
+      ansible.builtin.command: >
+        /usr/edb/as15/bin/pg_ctl -D {{ _pg_data }} -l {{ _pg_data }}/postgresql.log start
+      become_user: "{{ pg_owner }}"
+      when: "'primary' in group_names"
+
+    - name: Wait for Postgres to be ready
+      ansible.builtin.command:
+        cmd: >
+          /usr/edb/as15/bin/pg_isready -d postgres
+      become_user: "{{ pg_owner }}"
+      register: pg_isready
+      until: "pg_isready is not failed"
+      retries: 10
+      delay: 10
+      when: "'primary' in group_names"
+
+    - name: Drop the TPCC database if exists
+      ansible.builtin.command: >
+        /usr/edb/as15/bin/psql -d postgres -c "DROP DATABASE IF EXISTS tpcc"
+      become_user: "{{ pg_owner }}"
+      when: "'primary' in group_names"
+
+    - name: Populate the TPCC database
+      ansible.builtin.command:
+        cmd: "./hammerdbcli tcl auto {{ hammerdb_data_path }}/loader.tcl"
+        chdir: "{{ hammerdb_install_path }}"
+      async: 180000
+      poll: 60
+      changed_when: false
+      when: "'hammerdb' in group_names"
+
+    - name: CHECKPOINT
+      ansible.builtin.command: >
+        /usr/edb/as15/bin/psql -d postgres -c "CHECKPOINT"
+      become_user: "{{ pg_owner }}"
+      async: 180000
+      poll: 60
+      when: "'primary' in group_names"
+
+    - name: Execute the ramping up workload
+      ansible.builtin.shell: >
+       {{ hammerdb_data_path }}/exec-hdb-rampup.sh >> {{ hammerdb_data_path }}/{{ _rampup_csv_filename }}
+      args:
+        executable: /bin/bash
+      environment:
+        PG_HOST: "{{ hostvars['postgres1'].private_ip }}"
+        HAMMERDB_BIN_PATH: "{{ hammerdb_data_path }}"
+        TPCC_WAREHOUSE: "{{ tpcc_warehouse }}"
+      async: 180000
+      poll: 60
+      when: "'hammerdb' in group_names"
+
+    - name: Fetch data files
+      ansible.builtin.fetch:
+        src: "{{ hammerdb_data_path }}/{{ item }}"
+        dest: "./benchmark_data/{{ item }}"
+        flat: true
+      when: "'hammerdb' in group_names"
+      loop:
+      - "{{ _rampup_csv_filename }}"
+
+    - name: Drop the TPCC database
+      ansible.builtin.command: >
+        /usr/edb/as15/bin/psql -d postgres -c "DROP DATABASE tpcc"
+      become_user: "{{ pg_owner }}"
+      when: "'primary' in group_names"
+
+    - name: "Stop the database with TDE={{ use_tde }}"
+      ansible.builtin.command: >
+        /usr/edb/as15/bin/pg_ctl -D {{ _pg_data }} -m immediate stop
+      become_user: "{{ pg_owner }}"
+      when: "'primary' in group_names"
