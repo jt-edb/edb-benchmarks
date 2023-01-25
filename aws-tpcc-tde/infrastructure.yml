@@ -1,0 +1,40 @@
+cluster_name: TPCC-TDE
+aws:
+  ssh_user: rocky
+  operating_system:
+    name: Rocky-8-ec2-8.6-20220515.0.x86_64
+    owner: 679593333241
+  regions:
+    us-east-1:
+      cidr_block: 10.0.0.0/16
+      azs:
+        us-east-1b: 10.0.0.0/24
+      service_ports:
+        - port: 22
+          protocol: tcp
+          description: "SSH"
+        - port: 5444
+          protocol: tcp
+          description: "EPAS"
+
+  machines:
+    hammerdb:
+      type: hammerdb
+      region: us-east-1
+      az: us-east-1b
+      instance_type: c5.9xlarge
+      volume:
+        type: gp2
+        size_gb: 50
+        iops: 5000
+        encrypted: false
+    postgres1:
+      type: primary
+      region: us-east-1
+      az: us-east-1b
+      instance_type: c5d.18xlarge
+      volume:
+        type: gp2
+        size_gb: 50
+        iops: 5000
+        encrypted: false
