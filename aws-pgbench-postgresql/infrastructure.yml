@@ -22,7 +22,7 @@ aws:
       type: primary
       region: us-east-1
       az: us-east-1b
-      instance_type: c5d.24xlarge
+      instance_type: c5d.18xlarge
       volume:
         type: gp2
         size_gb: 50

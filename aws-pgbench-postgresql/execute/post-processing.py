@@ -26,6 +26,8 @@ def main():
         data = pd.read_csv(
             '%s/pgbench_data/pgbench-tps-%s.csv' % (dir_path, pg_version)
         )
+        # Use exponentially weighted moving average
+        data[pg_version] = data[pg_version].ewm(span=6, adjust=True).mean()
         # Max TPS value
         max_current_tps = data.max()[1]
         if max_current_tps > max_tps:

@@ -92,17 +92,18 @@
       async: 180000
       poll: 60
 
-    - name: Drop pgbench DB
-      ansible.builtin.command:
-        cmd: >
-          /usr/local/pgsql-{{ pg_version }}/bin/dropdb pgbench
-      become_user: "{{ pg_owner }}"
+    - name: Killing Postgres
+      ansible.builtin.shell: kill -9 $(pidof postgres)
+      become: true
 
-    - name: Stop PostgreSQL instance
-      ansible.builtin.command:
-        cmd: >
-          /usr/local/pgsql-{{ pg_version }}/bin/pg_ctl -D /pgdata/data/{{ pg_version }} -l /tmp/postgres.log stop
-      become_user: "{{ pg_owner }}"
+    - name: Cleaning up PGDATA and PGWAL
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      become: true
+      loop:
+        - "/pgdata/data/{{ pg_version }}"
+        - "/pgwal/wal/{{ pg_version }}"
 
     - name: Fetch pgbench data files
       ansible.builtin.fetch:

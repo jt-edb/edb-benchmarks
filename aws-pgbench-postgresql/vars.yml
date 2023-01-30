@@ -14,7 +14,7 @@ pg_settings:
   - name: max_wal_size
     value: "300GB"
   - name: effective_cache_size
-    value: "150GB"
+    value: "100GB"
   - name: random_page_cost
     value: 1
   - name: seq_page_cost
