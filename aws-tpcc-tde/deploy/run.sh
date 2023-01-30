@@ -25,6 +25,7 @@ ansible-playbook \
 	--private-key ${TERRAFORM_PROJECT_PATH}/ssh-id_rsa \
 	-i ${SCRIPT_DIR}/../inventory.yml \
 	-e "@${SCRIPT_DIR}/../vars.yml" \
+	-e "edb_beta_repo_token=${EDB_BETA_REPO_TOKEN}" \
 	${SCRIPT_DIR}/playbook-deploy.yml
 
 ansible-playbook \
