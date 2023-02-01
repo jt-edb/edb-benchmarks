@@ -88,6 +88,7 @@ def rewrite_mem_sar_file(file):
 def rewrite_disk_sar_file(file, device, dest_file):
     data = []
     has_headers = False
+    dev_col_number = 1
     with open(file, "r") as f:
         i = 0
         for line in f.readlines():
@@ -99,11 +100,17 @@ def rewrite_disk_sar_file(file, device, dest_file):
             if len(line) == 0:
                 continue
             row = re.split(r'\s{1,}', line)
-            if has_headers and row[2] == 'DEV':
+
+            # Handle the case when the timestamp includes PM or AM
+            # In this case, the column containing device names is the next one
+            if row[dev_col_number] in ['AM', 'PM']:
+                dev_col_number = 2
+
+            if has_headers and row[dev_col_number] == 'DEV':
                 continue
-            if row[2] != device and row[2] != 'DEV':
+            if row[dev_col_number] != device and row[dev_col_number] != 'DEV':
                 continue
-            if row[2] == 'DEV':
+            if row[dev_col_number] == 'DEV':
                 has_headers = True
             data.append(row)
     # Remove the last line
@@ -112,7 +119,7 @@ def rewrite_disk_sar_file(file, device, dest_file):
     # Save as CSV
     with open(dest_file, "w") as f:
         for row in data:
-            f.write(",".join(row[2:]))
+            f.write(",".join(row[dev_col_number:]))
             f.write("\n")
 
     return dest_file
