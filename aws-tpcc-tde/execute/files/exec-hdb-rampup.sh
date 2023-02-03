@@ -50,6 +50,8 @@ diset tpcc pg_count_ware ${WAREHOUSE}
 diset tpcc pg_driver timed
 diset tpcc pg_duration ${DURATION}
 diset tpcc pg_rampup ${RAMPUP}
+diset tpcc pg_allwarehouse true
+diset tpcc pg_num_vu ${c}
 vuset logtotemp 1
 loadscript
 vuset vu ${c}
