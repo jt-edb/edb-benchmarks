@@ -1,0 +1,11 @@
+---
+dbname: "dbt2"
+pg_data: "/pgdata/data"
+pg_wal: "/pgwal/wal"
+pg_port: 5432
+pg_type: PG
+pg_owner: postgres
+pg_group: postgres
+pg_superuser: postgres
+pg_password: "12Password!"
+pg_version: 14

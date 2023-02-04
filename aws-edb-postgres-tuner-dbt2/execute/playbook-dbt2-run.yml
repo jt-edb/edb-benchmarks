@@ -1,0 +1,451 @@
+---
+- hosts: dbt2_database
+  name: Reset PostgreSQL to defaults
+  gather_facts: true
+
+  collections:
+    - edb_devops.edb_postgres
+
+  tasks:
+    - name: Load servers.yml
+      ansible.builtin.include_vars:
+        file: "{{ terraform_project_path }}/servers.yml"
+        name: infra
+
+    # This needs to be a separate step because Tuner might update settings
+    # between a RESET ALL and a service restart.
+    - name: Disable EDB Postgres Tuner
+      ansible.builtin.command:
+        cmd: psql -c "ALTER SYSTEM SET edb_pg_tuner.autotune = off"
+      become_user: "{{ pg_owner }}"
+      become: true
+
+    - name: Reset PostgreSQL settings to defaults
+      ansible.builtin.command:
+        cmd: psql -c "ALTER SYSTEM RESET ALL"
+      become_user: "{{ pg_owner }}"
+      become: true
+
+    - name: Set listen_addresses
+      ansible.builtin.command:
+        cmd: >-
+          psql -c
+          "ALTER SYSTEM SET listen_addresses='*'"
+      become_user: "{{ pg_owner }}"
+      become: true
+
+    - name: Add EDB Postgres Tuner to preload_shared_libraries
+      ansible.builtin.command:
+        cmd: >-
+          psql -c
+          "ALTER SYSTEM SET shared_preload_libraries='$libdir/edb_pg_tuner'"
+      become_user: "{{ pg_owner }}"
+      become: true
+
+    # Autotuner doesn't handle this one yet...
+    - name: Set max_connections
+      ansible.builtin.command:
+        cmd: psql -c "ALTER SYSTEM SET max_connections = 600"
+      become_user: "{{ pg_owner }}"
+      become: true
+
+    - name: Restart PostgreSQL
+      ansible.builtin.systemd:
+        name: "{{ lookup('edb_devops.edb_postgres.pg_service') }}"
+        daemon_reload: true
+        state: restarted
+      become: true
+
+    - name: Set DBT-2 results directory
+      ansible.builtin.set_fact:
+        dbt2resultsname: "tuner-off"
+
+    - name: Make sure DBT-2 target data dir and archive do not exist
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      become: true
+      loop:
+        - /tmp/{{ dbt2resultsname }}
+        - /tmp/{{ dbt2resultsname }}.tar.gz
+
+- hosts: dbt2_driver
+  name: Run DBT-2 with PostgreSQL defaults
+  gather_facts: true
+
+  collections:
+    - edb_devops.edb_postgres
+
+  tasks:
+    - name: Set DBT-2 results directory
+      ansible.builtin.set_fact:
+        dbt2resultsname: "tuner-off"
+
+    - name: Load servers.yml
+      ansible.builtin.include_vars:
+        file: "{{ terraform_project_path }}/servers.yml"
+        name: infra
+
+    - name: Load infrastructure.yml
+      ansible.builtin.include_vars:
+        file: "../infrastructure.yml"
+        name: structure
+
+    - name: Make sure DBT-2 target data dir and archive do not exist
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      become: true
+      loop:
+        - /tmp/{{ dbt2resultsname }}
+        - /tmp/{{ dbt2resultsname }}.tar.gz
+
+    - name: Calculate drivers per processor
+      ansible.builtin.set_fact:
+        fpp: "{{ ((dbt2_connections | int) / ansible_processor_nproc) | int  }}"
+
+    # Use dbt2_connections as a limit to the number of connections that may be
+    # opened, which are opened in units matching the number of processors on
+    # the driver system.  Also target a 15 minute (900,000 ms) rampup time,
+    # which is the expected time needed for a 3,000 warehouse database to warm
+    # up.
+    - name: Start dbt2-run-workload
+      ansible.builtin.command:
+        cmd: >-
+          dbt2-run-workload
+            -A
+            -a pgsql
+            -d {{ dbt2_duration }}
+            -D {{ dbname }}
+            -F {{ fpp }}
+            -H {{ infra.servers.machines["dbt2-database"].private_ip }}
+            -n
+            -o /tmp/{{ dbt2resultsname }}
+            -s {{ (900000 / ((fpp | int) * ansible_processor_nproc)) | int }}
+            -t 1
+            -u
+            -w {{ dbt2_warehouse }}
+            -z "EDB Postgres Tuner on PostgreSQL (defaults)
+                {{ structure.aws.machines["dbt2-database"].instance_type }} |
+                {{ structure.aws.machines["dbt2-database"].volume.size_gb }}
+                GB {{ structure.aws.machines["dbt2-database"].volume.type }}
+                | {{ structure.aws.machines["dbt2-database"].volume.iops }}
+                IOPS | driver
+                {{ structure.aws.machines["dbt2-driver"].instance_type }}"
+      environment:
+        DRIVER3: "1"
+        PGHOST: "{{ infra.servers.machines[\"dbt2-database\"].private_ip }}"
+      become: true
+      become_user: "{{ pg_owner }}"
+      async: 180000
+      poll: 60
+      changed_when: false
+      register: result
+
+    - name: Workload execution output
+      ansible.builtin.debug:
+        var: result
+
+    # Ignore errors because dbt2-generate-report needs better return code logic.
+    - name: Generate DBT-2 report
+      ansible.builtin.command:
+        cmd: dbt2-generate-report -i /tmp/{{ dbt2resultsname }}
+      become: true
+      become_user: "{{ pg_owner }}"
+      async: 180000
+      poll: 60
+      changed_when: false
+      register: result
+
+    - name: Report generation output
+      ansible.builtin.debug:
+        var: result
+
+    - name: Create data archive
+      ansible.builtin.command:
+        cmd: >-
+          tar cvzf /tmp/{{ dbt2resultsname }}.tar.gz /tmp/{{ dbt2resultsname }}
+
+    - name: Fetch DBT-2 data files
+      ansible.builtin.fetch:
+        src: "/tmp/{{ dbt2resultsname }}.tar.gz"
+        dest: "./{{ dbt2resultsname }}/{{ dbt2resultsname }}.tar.gz"
+        flat: true
+
+- hosts: dbt2_database
+  name: Enable EDB Postgres Tuner for measurement run
+  gather_facts: true
+
+  collections:
+    - edb_devops.edb_postgres
+
+  tasks:
+    - name: Load servers.yml
+      ansible.builtin.include_vars:
+        file: "{{ terraform_project_path }}/servers.yml"
+        name: infra
+
+    - name: Enable EDB Postgres Tuner for measurement
+      ansible.builtin.command:
+        cmd: psql -c "ALTER SYSTEM SET edb_pg_tuner.autotune = on"
+      become_user: "{{ pg_owner }}"
+      become: true
+
+    - name: Restart PostgreSQL
+      ansible.builtin.systemd:
+        name: "{{ lookup('edb_devops.edb_postgres.pg_service') }}"
+        daemon_reload: true
+        state: restarted
+      become: true
+
+    - name: Set DBT-2 results directory
+      ansible.builtin.set_fact:
+        dbt2resultsname: "tuner-measurement"
+
+    - name: Make sure DBT-2 target data dir and archive do not exist
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      become: true
+      loop:
+        - /tmp/{{ dbt2resultsname }}
+        - /tmp/{{ dbt2resultsname }}.tar.gz
+
+- hosts: dbt2_driver
+  name: Run DBT-2 with EDB Postgres Tuner enabled
+  gather_facts: true
+
+  collections:
+    - edb_devops.edb_postgres
+
+  tasks:
+    - name: Set DBT-2 results directory
+      ansible.builtin.set_fact:
+        dbt2resultsname: "tuner-measurement"
+
+    - name: Load servers.yml
+      ansible.builtin.include_vars:
+        file: "{{ terraform_project_path }}/servers.yml"
+        name: infra
+
+    - name: Load infrastructure.yml
+      ansible.builtin.include_vars:
+        file: "../infrastructure.yml"
+        name: structure
+
+    - name: Make sure DBT-2 target data dir and archive do not exist
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      become: true
+      loop:
+        - /tmp/{{ dbt2resultsname }}
+        - /tmp/{{ dbt2resultsname }}.tar.gz
+
+    - name: Calculate drivers per processor
+      ansible.builtin.set_fact:
+        fpp: "{{ ((dbt2_connections | int) / ansible_processor_nproc) | int  }}"
+
+    # Use dbt2_connections as a limit to the number of connections that may be
+    # opened, which are opened in units matching the number of processors on
+    # the driver system.  Also target a 15 minute (900,000 ms) rampup time,
+    # which is the expected time needed for a 3,000 warehouse database to warm
+    # up.
+    - name: Start dbt2-run-workload
+      ansible.builtin.command:
+        cmd: >-
+          dbt2-run-workload
+            -A
+            -a pgsql
+            -d {{ dbt2_duration }}
+            -D {{ dbname }}
+            -F {{ fpp }}
+            -H {{ infra.servers.machines["dbt2-database"].private_ip }}
+            -n
+            -o /tmp/{{ dbt2resultsname }}
+            -s {{ (900000 / ((fpp | int) * ansible_processor_nproc)) | int }}
+            -t 1
+            -u
+            -w {{ dbt2_warehouse }}
+            -z "EDB Postgres Tuner on PostgreSQL (measuring...)
+                {{ structure.aws.machines["dbt2-database"].instance_type }} |
+                {{ structure.aws.machines["dbt2-database"].volume.size_gb }}
+                GB {{ structure.aws.machines["dbt2-database"].volume.type }}
+                | {{ structure.aws.machines["dbt2-database"].volume.iops }}
+                IOPS | driver
+                {{ structure.aws.machines["dbt2-driver"].instance_type }}"
+      environment:
+        DRIVER3: "1"
+        PGHOST: "{{ infra.servers.machines[\"dbt2-database\"].private_ip }}"
+      become: true
+      become_user: "{{ pg_owner }}"
+      async: 180000
+      poll: 60
+      changed_when: false
+      register: result
+
+    - name: Workload execution output
+      ansible.builtin.debug:
+        var: result
+
+    # Ignore errors because dbt2-generate-report needs better return code logic.
+    - name: Generate DBT-2 report
+      ansible.builtin.command:
+        cmd: dbt2-generate-report -i /tmp/{{ dbt2resultsname }}
+      become: true
+      become_user: "{{ pg_owner }}"
+      async: 180000
+      poll: 60
+      changed_when: false
+      register: result
+
+    - name: Report generation output
+      ansible.builtin.debug:
+        var: result
+
+    - name: Create data archive
+      ansible.builtin.command:
+        cmd: >-
+          tar cvzf /tmp/{{ dbt2resultsname }}.tar.gz /tmp/{{ dbt2resultsname }}
+
+    - name: Fetch DBT-2 data files
+      ansible.builtin.fetch:
+        src: "/tmp/{{ dbt2resultsname }}.tar.gz"
+        dest: "./{{ dbt2resultsname }}/{{ dbt2resultsname }}.tar.gz"
+        flat: true
+
+- hosts: dbt2_database
+  name: Applying any further EDB Postgres Tuner requiring restart
+  gather_facts: true
+
+  collections:
+    - edb_devops.edb_postgres
+
+  tasks:
+    - name: Load servers.yml
+      ansible.builtin.include_vars:
+        file: "{{ terraform_project_path }}/servers.yml"
+        name: infra
+
+    - name: Restart PostgreSQL
+      ansible.builtin.systemd:
+        name: "{{ lookup('edb_devops.edb_postgres.pg_service') }}"
+        daemon_reload: true
+        state: restarted
+      become: true
+
+    - name: Set DBT-2 results directory
+      ansible.builtin.set_fact:
+        dbt2resultsname: "tuner-final"
+
+    - name: Make sure DBT-2 target data dir and archive do not exist
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      become: true
+      loop:
+        - /tmp/{{ dbt2resultsname }}
+        - /tmp/{{ dbt2resultsname }}.tar.gz
+
+- hosts: dbt2_driver
+  name: Run DBT-2 with all EDB Postgres Tuner settings applied
+  gather_facts: true
+
+  collections:
+    - edb_devops.edb_postgres
+
+  tasks:
+    - name: Set DBT-2 results directory
+      ansible.builtin.set_fact:
+        dbt2resultsname: "tuner-final"
+
+    - name: Load servers.yml
+      ansible.builtin.include_vars:
+        file: "{{ terraform_project_path }}/servers.yml"
+        name: infra
+
+    - name: Load infrastructure.yml
+      ansible.builtin.include_vars:
+        file: "../infrastructure.yml"
+        name: structure
+
+    - name: Make sure DBT-2 target data dir and archive do not exist
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      become: true
+      loop:
+        - /tmp/{{ dbt2resultsname }}
+        - /tmp/{{ dbt2resultsname }}.tar.gz
+
+    - name: Calculate drivers per processor
+      ansible.builtin.set_fact:
+        fpp: "{{ ((dbt2_connections | int) / ansible_processor_nproc) | int  }}"
+
+    # Use dbt2_connections as a limit to the number of connections that may be
+    # opened, which are opened in units matching the number of processors on
+    # the driver system.  Also target a 15 minute (900,000 ms) rampup time,
+    # which is the expected time needed for a 3,000 warehouse database to warm
+    # up.
+    - name: Start dbt2-run-workload
+      ansible.builtin.command:
+        cmd: >-
+          dbt2-run-workload
+            -A
+            -a pgsql
+            -d {{ dbt2_duration }}
+            -D {{ dbname }}
+            -F {{ fpp }}
+            -H {{ infra.servers.machines["dbt2-database"].private_ip }}
+            -n
+            -o /tmp/{{ dbt2resultsname }}
+            -s {{ (900000 / ((fpp | int) * ansible_processor_nproc)) | int }}
+            -t 1
+            -u
+            -w {{ dbt2_warehouse }}
+            -z "EDB Postgres Tuner on PostgreSQL (final)
+                {{ structure.aws.machines["dbt2-database"].instance_type }} |
+                {{ structure.aws.machines["dbt2-database"].volume.size_gb }}
+                GB {{ structure.aws.machines["dbt2-database"].volume.type }}
+                | {{ structure.aws.machines["dbt2-database"].volume.iops }}
+                IOPS | driver
+                {{ structure.aws.machines["dbt2-driver"].instance_type }}"
+      environment:
+        DRIVER3: "1"
+        PGHOST: "{{ infra.servers.machines[\"dbt2-database\"].private_ip }}"
+      become: true
+      become_user: "{{ pg_owner }}"
+      async: 180000
+      poll: 60
+      changed_when: false
+      register: result
+
+    - name: Workload execution output
+      ansible.builtin.debug:
+        var: result
+
+    # Ignore errors because dbt2-generate-report needs better return code logic.
+    - name: Generate DBT-2 report
+      ansible.builtin.command:
+        cmd: dbt2-generate-report -i /tmp/{{ dbt2resultsname }}
+      become: true
+      become_user: "{{ pg_owner }}"
+      async: 180000
+      poll: 60
+      changed_when: false
+      register: result
+
+    - name: Report generation output
+      ansible.builtin.debug:
+        var: result
+
+    - name: Create data archive
+      ansible.builtin.command:
+        cmd: >-
+          tar cvzf /tmp/{{ dbt2resultsname }}.tar.gz /tmp/{{ dbt2resultsname }}
+
+    - name: Fetch DBT-2 data files
+      ansible.builtin.fetch:
+        src: "/tmp/{{ dbt2resultsname }}.tar.gz"
+        dest: "./{{ dbt2resultsname }}/{{ dbt2resultsname }}.tar.gz"
+        flat: true

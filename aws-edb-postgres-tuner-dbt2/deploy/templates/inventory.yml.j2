@@ -1,0 +1,21 @@
+---
+all:
+  children:
+    dbt2_database:
+      hosts:
+{% for hostname in servers.keys() %}
+{%   if servers[hostname]['type'] == 'dbt2-database' %}
+        {{ hostname }}:
+          ansible_host: {{ servers[hostname]['public_ip'] }}
+          private_ip: {{ servers[hostname]['private_ip'] }}
+{%   endif %}
+{% endfor %}
+    dbt2_driver:
+      hosts:
+{% for hostname in servers.keys() %}
+{%   if servers[hostname]['type'] == 'dbt2-driver' %}
+        {{ hostname }}:
+          ansible_host: {{ servers[hostname]['public_ip'] }}
+          private_ip: {{ servers[hostname]['private_ip'] }}
+{%   endif %}
+{% endfor %}

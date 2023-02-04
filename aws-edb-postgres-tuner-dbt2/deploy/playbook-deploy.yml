@@ -1,0 +1,53 @@
+---
+- hosts: all
+  name: Install repository
+  become: true
+  gather_facts: false
+
+  collections:
+    - edb_devops.edb_postgres
+
+  pre_tasks:
+    - ansible.builtin.wait_for_connection:
+      delay: 5
+      timeout: 600
+
+    - name: Gather facts for first time
+      ansible.builtin.setup:
+
+    - name: Initialize the user defined variables
+      set_fact:
+        enable_edb_repo: true
+
+  roles:
+    - role: setup_repo
+
+- hosts: dbt2_driver
+  name: Setup DBT-2 driver
+  become: true
+  gather_facts: true
+
+  collections:
+    - edb_devops.edb_postgres
+
+  roles:
+    - role: setup_dbt2_driver
+
+- hosts: dbt2_database
+  name: Install PostgreSQL
+  become: true
+  gather_facts: true
+
+  collections:
+    - edb_devops.edb_postgres
+
+  pre_tasks:
+    - name: Initialize the user defined variables
+      set_fact:
+        disable_logging: false
+
+  roles:
+    - install_dbserver
+    - init_dbserver
+    - manage_dbserver
+    - setup_dbt2
