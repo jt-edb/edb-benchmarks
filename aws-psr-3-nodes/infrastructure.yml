@@ -1,5 +1,5 @@
-cluster_name: MC-PSR-EFM-Test
 aws:
+  cluster_name: MC-PSR-EFM-Test
   ssh_user: cloud-user
   #ssh_user: centos
   operating_system:
@@ -10,7 +10,7 @@ aws:
   regions:
     us-east-2:
       cidr_block: 10.0.0.0/16
-      azs:
+      zones:
         us-east-2b: 10.0.0.0/24
       service_ports:
         - port: 22
@@ -42,7 +42,7 @@ aws:
     psr-client-1:
       type: client
       region: us-east-2
-      az: us-east-2b
+      zone: us-east-2b
       instance_type: c5.2xlarge
       volume:
         type: gp2
@@ -51,7 +51,7 @@ aws:
     psr-proxy-1:
       type: proxy
       region: us-east-2
-      az: us-east-2b
+      zone: us-east-2b
       instance_type: c5.2xlarge
       volume:
         type: gp2
@@ -60,7 +60,7 @@ aws:
     psr-pg-1:
       type: primary
       region: us-east-2
-      az: us-east-2b
+      zone: us-east-2b
       instance_type: r5.2xlarge
       volume:
         type: gp2
@@ -80,7 +80,7 @@ aws:
     psr-pg-2:
       type: standby
       region: us-east-2
-      az: us-east-2b
+      zone: us-east-2b
       instance_type: r5.2xlarge
       volume:
         type: gp2
@@ -100,7 +100,7 @@ aws:
     psr-pg-3:
       type: standby
       region: us-east-2
-      az: us-east-2b
+      zone: us-east-2b
       instance_type: r5.2xlarge
       volume:
         type: gp2

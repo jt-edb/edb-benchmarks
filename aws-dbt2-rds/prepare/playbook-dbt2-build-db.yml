@@ -22,7 +22,7 @@
         DBT2PGDATA: /tmp
         DBT2DBNAME: "{{ infra.servers.databases.dbt2.dbname }}"
         PGPASSWORD: "{{ pg_password }}"
-        PGHOST: "{{ infra.servers.databases.dbt2.address }}"
+        PGHOST: "{% if infra.servers.databases.dbt2.public_ip %}{{ infra.servers.databases.dbt2.public_ip }}{% else %}{{ infra.servers.databases.dbt2.private_ip }}{% endif %}"
       become_user: "{{ pg_owner }}"
       async: 180000
       poll: 60

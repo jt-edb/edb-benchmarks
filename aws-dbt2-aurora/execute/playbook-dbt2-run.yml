@@ -28,7 +28,11 @@
       ansible.builtin.command:
         cmd: >-
           dig
-            {{ infra.servers.aurora.dbt2.address }}
+          {% if infra.servers.aurora.dbt2.public_ip %}
+            {{ infra.servers.aurora.dbt2.public_ip }}
+          {% else %}
+            {{ infra.servers.aurora.dbt2.private_ip }}
+          {% endif %}
             +short
       register: address
 

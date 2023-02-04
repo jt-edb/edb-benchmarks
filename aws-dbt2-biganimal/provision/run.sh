@@ -9,7 +9,7 @@ TERRAFORM_PROJECT_PATH=$(readlink -f "${TERRAFORM_PROJECT_PATH}")
 edb-terraform "${TERRAFORM_PROJECT_PATH}" ../infrastructure.yml
 cd "${TERRAFORM_PROJECT_PATH}"
 terraform init
-terraform apply -var-file=./terraform_vars.json -auto-approve
+terraform apply -auto-approve
 
 BIGANIMALINFRAFILE="${TERRAFORM_PROJECT_PATH}/ba-infrastructure.yml"
 

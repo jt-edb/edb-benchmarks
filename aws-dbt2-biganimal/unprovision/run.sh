@@ -4,7 +4,7 @@
 TERRAFORM_PROJECT_PATH=$(readlink -f "${TERRAFORM_PROJECT_PATH}")
 
 cd "${TERRAFORM_PROJECT_PATH}"
-terraform destroy -var-file=./terraform_vars.json -auto-approve
+terraform destroy -auto-approve
 
 BIGANIMALIDFILE="${TERRAFORM_PROJECT_PATH}/biganimal-id"
 BAID=$(<"$BIGANIMALIDFILE")
