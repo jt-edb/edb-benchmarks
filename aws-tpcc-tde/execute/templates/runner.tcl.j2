@@ -26,8 +26,6 @@ diset tpcc pg_driver timed
 diset tpcc pg_duration {{ tpcc_duration }}
 diset tpcc pg_rampup {{ tpcc_rampup }}
 diset tpcc pg_timeprofile false
-diset tpcc pg_allwarehouse true
-diset tpcc pg_num_vu {{ tpcc_vusers }}
 vuset logtotemp 1
 loadscript
 vuset vu {{ tpcc_vusers }}
