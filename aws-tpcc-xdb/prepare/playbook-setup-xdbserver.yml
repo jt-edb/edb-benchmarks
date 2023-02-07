@@ -1,0 +1,137 @@
+---
+- hosts: xdbserver
+  name: Setup xdbserver
+  gather_facts: true
+  become: true
+
+  collections:
+    - edb_devops.edb_postgres
+
+  tasks:
+    - name: Ensure edb-xdbpubserver service is enable and started
+      ansible.builtin.systemd:
+        name: edb-xdbpubserver
+        enabled: true
+        state: restarted
+      become: true
+
+    - name: Fetch XDB password from /etc/edb-repl.conf
+      ansible.builtin.shell: |
+          grep admin_password /etc/edb-repl.conf | sed s/admin_password=//
+      register: output_password
+      become: true
+
+    - name: Write /tmp/pubsvrfile.prop
+      ansible.builtin.copy:
+        content: "
+host=localhost\n
+port=9051\n
+user=admin\n
+# Password is in encrypted form.\n
+password={{ output_password.stdout }}\n"
+        dest: /tmp/pubsvrfile.prop
+      become: true
+
+    - name: Apply XDB tuning on /usr/edb/xdb/etc/xdb_pubserver.conf
+      ansible.builtin.lineinfile:
+        path: /usr/edb/xdb/etc/xdb_pubserver.conf
+        line: "{{ item.line }}"
+        regexp: "{{ item.regexp }}"
+      become: true
+      loop:
+        - line: "txSetMaxSize={{ xdb_txsetmaxsize }}"
+          regexp: "^txSetMaxSize=.*"
+        - line: "syncLoadThreadLimit={{ xdb_syncloadthreadlimit }}"
+          regexp: "^syncLoadThreadLimit=.*"
+        - line: "dataSyncThreadCount={{ xdb_datasyncthreadcount }}"
+          regexp: "^dataSyncThreadCount=.*"
+        - line: "defaultBatchUpdateMode={{ xdb_defaultbatchupdatemode }}"
+          regexp: "^defaultBatchUpdateMode=.*"
+        - line: "switchBatchUpdateMode={{ xdb_switchbatchupdatemode }}"
+          regexp: "^switchBatchUpdateMode=.*"
+        - line: "syncBatchSize={{ xdb_syncbatchsize }}"
+          regexp: "^syncBatchSize=.*"
+        - line: "syncFetchSize={{ xdb_syncfetchsize }}"
+          regexp: "^syncFetchSize=.*"
+
+    - name: Restart edb-xdbpubserver service
+      ansible.builtin.systemd:
+        name: edb-xdbpubserver
+        state: restarted
+      become: true
+
+    - name: Set edb_repcli
+      ansible.builtin.set_fact:
+        edb_repcli: "java -jar /usr/edb/xdb/bin/edb-repcli.jar"
+
+    - name: Encrypt replication password
+      ansible.builtin.shell: |
+        echo "{{ xdb_password }}" > /tmp/pass
+        {{ edb_repcli }} -encrypt -input /tmp/pass -output /tmp/enc_pass
+        cat /tmp/enc_pass
+      become: true
+      register: enc_password
+
+    - name: XDB Add pub DB for xdb1
+      ansible.builtin.shell: |
+        {{ edb_repcli }} \
+          -addpubdb \
+          -repsvrfile /tmp/pubsvrfile.prop \
+          -dbtype enterprisedb \
+          -dbhost {{ hostvars['xdb1'].private_ip }} \
+          -dbport 5444 \
+          -dbuser {{ xdb_username }} \
+          -dbpassword "{{ enc_password.stdout }}" \
+          -database {{ xdb_dbname }} \
+          -changesetlogmode W \
+          -repgrouptype m
+      become: true
+
+    - name: XDB Create pub
+      ansible.builtin.shell: |
+        {{ edb_repcli }} \
+          -createpub {{ xdb_dbname }} \
+          -repsvrfile /tmp/pubsvrfile.prop \
+          -pubdbid 1 \
+          -reptype t \
+          -tables \
+            public.customer \
+            public.district \
+            public.history \
+            public.item \
+            public.new_order \
+            public.order_line \
+            public.orders \
+            public.stock \
+            public.warehouse \
+          -repgrouptype m
+      become: true
+
+    - name: XDB Add pub DB for xdb2
+      ansible.builtin.shell: |
+        {{ edb_repcli }} \
+          -addpubdb \
+          -repsvrfile /tmp/pubsvrfile.prop \
+          -dbtype enterprisedb \
+          -dbhost {{ hostvars['xdb2'].private_ip }} \
+          -dbport 5444 \
+          -dbuser {{ xdb_username }} \
+          -dbpassword "{{ enc_password.stdout }}" \
+          -database {{ xdb_dbname }} \
+          -changesetlogmode W \
+          -repgrouptype m \
+          -nodepriority 1 \
+          -replicatepubschema true \
+          -initialsnapshot
+      become: true
+      async: 180000
+      poll: 60
+
+    - name: XDB Schedule MMR
+      ansible.builtin.shell: |
+        {{ edb_repcli }} \
+          -confschedulemmr 1 \
+          -pubname {{ xdb_dbname }} \
+          -repsvrfile /tmp/pubsvrfile.prop \
+          -realtime 1
+      become: true
