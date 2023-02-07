@@ -1,0 +1,47 @@
+---
+- hosts: xdbserver, primary
+  name: Setup EDB repository
+  become: true
+  gather_facts: true
+  collections:
+    - edb_devops.edb_postgres
+  roles:
+    - role: setup_repo
+
+- hosts: primary
+  name: Install and initialize EPAS
+  become: true
+  gather_facts: true
+  collections:
+    - edb_devops.edb_postgres
+  roles:
+    - role: install_dbserver
+    - role: init_dbserver
+    - role: tuning
+
+- hosts: xdbserver
+  name: Setup XDB server
+  become: true
+
+  tasks:
+    - name: Ensure XDB packages are installed
+      ansible.builtin.package:
+        name: "{{ item }}"
+        state: present
+      become: true
+      loop:
+        - edb-xdb
+        - edb-jdbc
+
+    - name: Make symlink of the JDBC driver
+      ansible.builtin.shell: |
+        ln -s /usr/edb/jdbc/edb-jdbc18.jar /usr/edb/xdb/lib/jdbc/.
+      become: true
+
+    - name: Update JRE memory max limit to 8GB
+      ansible.builtin.lineinfile:
+        path: /usr/edb/xdb/etc/sysconfig/xdbReplicationServer-7.config
+        line: "JAVA_HEAP_SIZE=\"-Xms256m -Xmx8192m\""
+        regexp: "^JAVA_HEAP_SIZE.*"
+      become: true
+

@@ -1,0 +1,83 @@
+pg_data: /pgdata/data
+pg_wal: /pgwal/wal
+pg_version: 14
+pg_type: EPAS
+pg_owner: enterprisedb
+pg_user: enterprisedb
+pg_group: enterprisedb
+disable_logging: false
+hammerdb_version: 4.6
+hammerdb_install_path: "/opt/HammerDB-{{ hammerdb_version }}"
+hammerdb_data_path: /opt/hammerdb-data
+pg_login_unix_socket: "/var/run/edb/as{{ pg_version }}"
+xdb_dbname: edb
+xdb_username: xdb
+xdb_password: 12Password!!
+# XDB tuning
+xdb_txsetmaxsize: 100000
+xdb_syncloadthreadlimit: 16
+xdb_datasyncthreadcount: 16
+xdb_defaultbatchupdatemode: BUS
+xdb_switchbatchupdatemode: false
+xdb_syncbatchsize: 1000
+xdb_syncfetchsize: 1000
+
+ssd_disk: true
+enable_edb_repo: true
+pg_port: 5444
+pg_database: edb
+pg_unix_socket_directories:
+  - "/var/run/edb/as{{ pg_version }}"
+pg_settings:
+  - name: wal_level
+    value: 'logical'
+  - name: track_commit_timestamp
+    value: 'on'
+  - name: password_encryption
+    value: 'md5'
+  - name: autovacuum_work_mem
+    value: '1GB'
+  - name: checkpoint_completion_target
+    value: '0.93'
+  - name: checkpoint_timeout
+    value: '30min'
+  - name: cpu_tuple_cost
+    value: '0.03'
+  - name: effective_cache_size
+    value: '80GB'
+  - name: effective_io_concurrency
+    value: '200'
+  - name: maintenance_work_mem
+    value: '1GB'
+  - name: max_parallel_maintenance_workers
+    value: '8'
+  - name: max_connections
+    value: '150'
+  - name: max_replication_slots
+    value: '40'
+  - name: max_wal_size
+    value: '200GB'
+  - name: min_wal_size
+    value: '1GB'
+  - name: random_page_cost
+    value: '1.1'
+  - name: shared_buffers
+    value: '16GB'
+  - name: wal_compression
+    value: 'on'
+  - name: wal_buffers
+    value: '64MB'
+  - name: work_mem
+    value: '32MB'
+  - name: max_parallel_workers_per_gather
+    value: '8'
+  - name: shared_preload_libraries
+    value: 'pg_stat_statements'
+  - name: edb_dynatune
+    value: '100'
+  - name: archive_mode
+    value: 'off'
+  - name: max_worker_processes
+    value: '50'
+  - name: 'edb_pg_tuner.autotune'
+    value: 'off'

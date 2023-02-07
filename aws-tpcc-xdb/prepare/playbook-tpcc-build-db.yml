@@ -1,0 +1,172 @@
+---
+- hosts: all
+  name: Populate TPCC database
+  become: true
+  gather_facts: true
+
+  collections:
+    - edb_devops.edb_postgres
+
+  tasks:
+    - name: Make {{ hammerdb_data_path }} exists
+      ansible.builtin.file:
+        path: "{{ hammerdb_data_path }}"
+        state: directory
+      when: "'hammerdb' in group_names"
+
+    - name: Generate HammerDB loader script
+      ansible.builtin.template:
+        src: loader.tcl.j2
+        dest: "{{ hammerdb_data_path }}/loader.tcl"
+      when: "'hammerdb' in group_names"
+
+    - name: Apply EPAS tunning
+      ansible.builtin.lineinfile:
+        path: "{{ pg_data }}/postgresql.auto.conf"
+        line: "{{ item.name }} = '{{ item.value }}'"
+        regexp: "^{{ item.name | regex_escape() }} =.*"
+        create: true
+        owner: "{{ pg_owner }}"
+        group: "{{ pg_group }}"
+      loop: "{{ pg_settings }}"
+      when: "'primary' in group_names"
+
+    - name: Allow TPCC connections
+      ansible.builtin.lineinfile:
+        path: "{{ pg_data }}/pg_hba.conf"
+        line: "host  all  all  10.0.0.0/16   trust"
+      become_user: "{{ pg_owner }}"
+      when: "'primary' in group_names"
+
+    - name: Allow TPCC connections (SSL)
+      ansible.builtin.lineinfile:
+        path: "{{ pg_data }}/pg_hba.conf"
+        line: "hostssl  all  all  10.0.0.0/16   trust"
+      become_user: "{{ pg_owner }}"
+      when: "'primary' in group_names"
+
+    - name: Allow replication connections
+      ansible.builtin.lineinfile:
+        path: "{{ pg_data }}/pg_hba.conf"
+        line: "host  replication  all  10.0.0.0/16   trust"
+      become_user: "{{ pg_owner }}"
+      when: "'primary' in group_names"
+
+    - name: Ensure Postgres user {{ xdb_username }} exists
+      ansible.builtin.include_role:
+        name: edb_devops.edb_postgres.manage_dbserver
+        tasks_from: manage_users
+      vars:
+        pg_users:
+          - name: "{{ xdb_username }}"
+            pass: "{{ xdb_password }}"
+            role_attr_flags: "SUPERUSER,LOGIN"
+      when: "'primary' in group_names"
+
+    - name: Ensure Postgres user tpcc exists on xdb2
+      ansible.builtin.include_role:
+        name: edb_devops.edb_postgres.manage_dbserver
+        tasks_from: manage_users
+      vars:
+        pg_users:
+          - name: "tpcc"
+            role_attr_flags: "LOGIN"
+      when: inventory_hostname == 'xdb2'
+
+    - name: Restart EPAS
+      ansible.builtin.systemd:
+        name: "edb-as-{{ pg_version }}"
+        state: restarted
+      become: true
+      when: "'primary' in group_names"
+
+    - name: Wait for EPAS to be ready
+      ansible.builtin.command:
+        cmd: >
+          /usr/edb/as{{ pg_version }}/bin/pg_isready -d postgres -h {{ pg_login_unix_socket }}
+      become_user: "{{ pg_owner }}"
+      register: pg_isready
+      until: "pg_isready is not failed"
+      retries: 10
+      delay: 10
+      when: "'primary' in group_names"
+
+    - name: Populate the TPCC database
+      ansible.builtin.command:
+        cmd: "./hammerdbcli tcl auto {{ hammerdb_data_path }}/loader.tcl"
+        chdir: "{{ hammerdb_install_path }}"
+      async: 180000
+      poll: 60
+      changed_when: false
+      when: "'hammerdb' in group_names"
+
+    - name: Issuing CHECKPOINT on xdb1
+      community.postgresql.postgresql_query:
+        autocommit: true
+        query: >-
+          CHECKPOINT
+        db: "{{ xdb_dbname }}"
+        login_user: "{{ pg_user }}"
+        port: 5444
+        login_unix_socket: "{{ pg_login_unix_socket }}"
+      become_user: "{{ pg_owner }}"
+      when: inventory_hostname == 'xdb1'
+      async: 180000
+      poll: 60
+
+    - name: Apply REPLICA IDENTITY
+      ansible.builtin.include_role:
+        name: edb_devops.edb_postgres.manage_dbserver
+        tasks_from: execute_sql_scripts
+      vars:
+        pg_query:
+          - query: "ALTER TABLE customer REPLICA IDENTITY USING INDEX customer_i1;"
+            db: "{{ xdb_dbname }}"
+          - query: "ALTER TABLE district REPLICA IDENTITY USING INDEX district_i1;"
+            db: "{{ xdb_dbname }}"
+          - query: "ALTER TABLE history ADD PRIMARY KEY (h_date, h_c_id, h_c_w_id, h_w_id, h_c_d_id, h_d_id)"
+            db: "{{ xdb_dbname }}"
+          - query: "ALTER TABLE history REPLICA IDENTITY USING INDEX history_pkey;"
+            db: "{{ xdb_dbname }}"
+          - query: "ALTER TABLE item REPLICA IDENTITY USING INDEX item_i1;"
+            db: "{{ xdb_dbname }}"
+          - query: "ALTER TABLE new_order REPLICA IDENTITY USING INDEX new_order_i1;"
+            db: "{{ xdb_dbname }}"
+          - query: "ALTER TABLE order_line REPLICA IDENTITY USING INDEX order_line_i1;"
+            db: "{{ xdb_dbname }}"
+          - query: "ALTER TABLE orders REPLICA IDENTITY USING INDEX orders_i1;"
+            db: "{{ xdb_dbname }}"
+          - query: "ALTER TABLE stock REPLICA IDENTITY USING INDEX stock_i1;"
+            db: "{{ xdb_dbname }}"
+          - query: "ALTER TABLE warehouse REPLICA IDENTITY USING INDEX warehouse_i1;"
+            db: "{{ xdb_dbname }}"
+      when:
+        - inventory_hostname == 'xdb1'
+
+    - name: Issuing CHECKPOINT on xdb2
+      community.postgresql.postgresql_query:
+        autocommit: true
+        query: >-
+          CHECKPOINT
+        db: "{{ xdb_dbname }}"
+        login_user: "{{ pg_user }}"
+        port: 5444
+        login_unix_socket: "{{ pg_login_unix_socket }}"
+      become_user: "{{ pg_owner }}"
+      when: inventory_hostname == 'xdb2'
+      async: 180000
+      poll: 60
+
+    - name: Running VACUUM FREEZE ANALYZE
+      community.postgresql.postgresql_query:
+        autocommit: true
+        query: >-
+          VACUUM FREEZE ANALYZE
+        db: "{{ xdb_dbname }}"
+        login_user: "{{ pg_user }}"
+        port: 5444
+        login_unix_socket: "{{ pg_login_unix_socket }}"
+      become_user: "{{ pg_owner }}"
+      when: "'primary' in group_names"
+      async: 180000
+      poll: 60
