@@ -1,0 +1,38 @@
+#!/bin/tclsh
+
+proc runtimer { seconds } {
+	set x 0
+	set timerstop 0
+	while {!$timerstop} {
+		incr x
+		after 1000
+		if { ![ expr {$x % 60} ] } {
+			set y [ expr $x / 60 ]
+			puts "Timer: $y minutes elapsed"
+		}
+		update
+		if {  [ vucomplete ] || $x eq $seconds } { set timerstop 1 }
+	}
+	return
+}
+
+dbset db ora
+diset connection system_user "{{ infra.servers.databases.tprocc.username }}"
+diset connection system_password "{{ infra.servers.databases.tprocc.password }}"
+diset connection instance {{ infra.servers.databases.tprocc.dbname }}
+diset tpcc count_ware {{ tprocc_warehouse }}
+diset tpcc num_vu {{ tprocc_vusers }}
+diset tpcc rampup 15
+diset tpcc duration {{ tprocc_duration }}
+diset tpcc allwarehouse true
+diset tpcc ora_timeprofile true
+vuset logtotemp 1
+loadscript
+vuset vu {{ tprocc_vusers }}
+vucreate
+vurun
+runtimer {{ 60 * (15 + tprocc_duration | int) }}
+vudestroy
+after 5000
+
+exit

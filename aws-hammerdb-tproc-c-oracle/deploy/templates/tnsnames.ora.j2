@@ -1,0 +1,9 @@
+{{ infra.servers.databases.tprocc.dbname }} =
+ (DESCRIPTION =
+   (ADDRESS_LIST =
+     (ADDRESS = (PROTOCOL = TCP)(HOST = {{ infra.servers.databases.tprocc.public_ip }})(PORT = 1521))
+   )
+ (CONNECT_DATA =
+   (SERVICE_NAME = {{ infra.servers.databases.tprocc.dbname }})
+ )
+)

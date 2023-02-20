@@ -1,0 +1,12 @@
+---
+all:
+  children:
+    hammerdb_driver:
+      hosts:
+{% for hostname in servers.keys() %}
+{%   if servers[hostname]['type'] == 'hammerdb-driver' %}
+        {{ hostname }}:
+          ansible_host: {{ servers[hostname]['public_ip'] }}
+          private_ip: {{ servers[hostname]['private_ip'] }}
+{%   endif %}
+{% endfor %}

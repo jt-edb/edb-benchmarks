@@ -1,0 +1,48 @@
+---
+cluster_name: HAMMERDB-TPROCC-ORACLE
+aws:
+  ssh_user: rocky
+  operating_system:
+    name: Rocky-8-ec2-8.6-20220515.0.x86_64
+    owner: 679593333241
+  regions:
+    us-east-1:
+      cidr_block: 10.0.0.0/16
+      azs:
+        us-east-1b: 10.0.0.0/24
+        us-east-1c: 10.0.1.0/24
+      service_ports:
+        - port: 22
+          protocol: tcp
+          description: "SSH"
+        - port: 1521
+          protocol: tcp
+          description: "Oracle"
+
+  machines:
+    hammerdb-driver:
+      type: hammerdb-driver
+      region: us-east-1
+      az: us-east-1b
+      instance_type: c5.9xlarge
+      volume:
+        type: gp2
+        size_gb: 50
+        iops: 5000
+        encrypted: false
+
+  databases:
+    tprocc:
+      region: us-east-1
+      engine: oracle-ee
+      engine_version: 19
+      instance_type: db.r5.4xlarge
+      dbname: tprocc
+      username: admin
+      password: "12Password!"
+      port: 1521
+      volume:
+        size_gb: 300
+        type: io1
+        iops: 15000
+        encrypted: true

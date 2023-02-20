@@ -1,0 +1,25 @@
+---
+- hosts: hammerdb_driver
+  name: Populate TPROC-C database
+  become: true
+  gather_facts: true
+
+  collections:
+    - edb_devops.edb_postgres
+
+  tasks:
+    - name: Build TPROC-C database
+      ansible.builtin.shell:
+        cmd: ./hammerdbcli tcl auto /home/hammerdb/build.tcl
+      args:
+        chdir: "/home/hammerdb/HammerDB-{{ hammerdb_version }}"
+      environment:
+        ORACLE_HOME: "/usr/lib/oracle/21/client64"
+      become_user: "hammerdb"
+      async: 180000
+      poll: 60
+      register: result
+
+    - name: Database build output
+      ansible.builtin.debug:
+        var: result
