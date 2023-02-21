@@ -1,0 +1,102 @@
+---
+- hosts: all
+  name: Populate TPCC database
+  become: true
+  gather_facts: true
+
+  collections:
+    - edb_devops.edb_postgres
+
+  tasks:
+    - name: Make {{ hammerdb_data_path }} exists
+      ansible.builtin.file:
+        path: "{{ hammerdb_data_path }}"
+        state: directory
+      when: "'hammerdb' in group_names"
+
+    - name: Generate HammerDB loader script
+      ansible.builtin.template:
+        src: loader.tcl.j2
+        dest: "{{ hammerdb_data_path }}/loader.tcl"
+      when: "'hammerdb' in group_names"
+
+    - name: Apply EPAS tunning
+      ansible.builtin.lineinfile:
+        path: "{{ pg_data }}/postgresql.auto.conf"
+        line: "{{ item.name }} = '{{ item.value }}'"
+        regexp: "^{{ item.name | regex_escape() }} =.*"
+        create: true
+        owner: "{{ pg_owner }}"
+        group: "{{ pg_group }}"
+      loop: "{{ pg_settings }}"
+      when: "'primary' in group_names"
+
+    - name: Allow TPCC connections
+      ansible.builtin.lineinfile:
+        path: "{{ pg_data }}/pg_hba.conf"
+        line: "host  all  all  10.0.0.0/16   trust"
+      become_user: "{{ pg_owner }}"
+      when: "'primary' in group_names"
+
+    - name: Allow TPCC connections (SSL)
+      ansible.builtin.lineinfile:
+        path: "{{ pg_data }}/pg_hba.conf"
+        line: "hostssl  all  all  10.0.0.0/16   trust"
+      become_user: "{{ pg_owner }}"
+      when: "'primary' in group_names"
+
+    - name: Restart EPAS
+      ansible.builtin.systemd:
+        name: "edb-as-{{ pg_version }}"
+        state: restarted
+      become: true
+      when: "'primary' in group_names"
+
+    - name: Wait for EPAS to be ready
+      ansible.builtin.command:
+        cmd: >
+          /usr/edb/as{{ pg_version }}/bin/pg_isready -d postgres -h {{ pg_unix_socket_directories[0] }}
+      become_user: "{{ pg_owner }}"
+      register: pg_isready
+      until: "pg_isready is not failed"
+      retries: 10
+      delay: 10
+      when: "'primary' in group_names"
+
+    - name: Populate the TPCC database
+      ansible.builtin.command:
+        cmd: "./hammerdbcli tcl auto {{ hammerdb_data_path }}/loader.tcl"
+        chdir: "{{ hammerdb_install_path }}"
+      async: 180000
+      poll: 60
+      changed_when: false
+      when: "'hammerdb' in group_names"
+
+    - name: Issuing CHECKPOINT
+      community.postgresql.postgresql_query:
+        autocommit: true
+        query: >-
+          CHECKPOINT
+        db: "{{ tde_dbname }}"
+        login_user: "{{ pg_user }}"
+        port: 5444
+        login_unix_socket: "{{ pg_unix_socket_directories[0] }}"
+      become_user: "{{ pg_owner }}"
+      when: "'primary' in group_names"
+      async: 180000
+      poll: 60
+
+    - name: Gathering TPCC tables size
+      ansible.builtin.command:
+        cmd: >
+          /usr/edb/as{{ pg_version }}/bin/psql -h {{ pg_unix_socket_directories[0] }} {{ tde_dbname }} -c "SELECT tablename, pg_size_pretty(pg_relation_size(schemaname||'.'||tablename)) AS table_size, pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename) - pg_relation_size(schemaname||'.'||tablename)) AS index_size FROM pg_tables WHERE schemaname = 'public' ORDER BY pg_relation_size(schemaname||'.'||tablename) DESC;"
+      become_user: "{{ pg_owner }}"
+      register: tables_size
+      when: "'primary' in group_names"
+
+    - name: Save tables size output
+      ansible.builtin.copy:
+        dest: "/tmp/tpcc-tables-size.output"
+        content: "{{ tables_size.stdout }}"
+      become_user: "{{ pg_owner }}"
+      when: "'primary' in group_names"

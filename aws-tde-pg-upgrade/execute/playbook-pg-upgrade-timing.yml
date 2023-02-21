@@ -1,0 +1,100 @@
+---
+- hosts: primary
+  name: pg_upgrade timing
+  gather_facts: false
+  become: true
+
+  collections:
+    - edb_devops.edb_postgres
+
+  tasks:
+    - name: Set variables if using TDE
+      ansible.builtin.set_fact:
+        _pg_upgrade_options: "--copy-by-block --key-unwrap-command \"cat {{ pg_data_15 }}/pg_encryption/key.bin\""
+        _initdb_options: "--data-encryption --no-key-wrap"
+        _time_pg_upgrade_output_filename: "/tmp/time_pg_upgrade_tde.output"
+        _pg_upgrade_output_filename: "/tmp/pg_upgrade_tde.output"
+      when: "{{ use_tde | bool == true }}"
+
+    - name: Set variables if not using TDE
+      ansible.builtin.set_fact:
+        _pg_upgrade_options: "--copy-by-block"
+        _initdb_options: ""
+        _time_pg_upgrade_output_filename: "/tmp/time_pg_upgrade.output"
+        _pg_upgrade_output_filename: "/tmp/pg_upgrade.output"
+      when: "{{ use_tde | bool == false }}"
+
+    - name: Make sur the database instance is stopped
+      ansible.builtin.systemd:
+        name: "edb-as-{{ pg_version }}"
+        state: stopped
+      become: true
+
+    - name: Make sure data and wal directories do not exist on EPAS 15
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - "{{ pg_data_15 }}"
+        - "{{ pg_wal_15 }}"
+      become: true
+
+    - name: Make sure data and wal directories exist on EPAS 15
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ pg_owner }}"
+        group: "{{ pg_group }}"
+        mode: 0700
+      loop:
+        - "{{ pg_data_15 }}"
+        - "{{ pg_wal_15 }}"
+      become: true
+
+    - name: Empty system cache
+      ansible.builtin.shell: >
+        echo 3 > /proc/sys/vm/drop_caches
+      become: true
+
+    - name: Initialize the database cluster
+      ansible.builtin.command: >
+        /usr/edb/as15/bin/initdb \
+          -D {{ pg_data_15 }} \
+          -X {{ pg_wal_15 }} \
+          --lc-ctype en_US.UTF-8 \
+          --data-checksums \
+          {{ _initdb_options }}
+      become_user: "{{ pg_owner }}"
+      become: true
+
+    - name: Execute pg_upgrade
+      ansible.builtin.shell: >
+        /usr/bin/time -v \
+          sudo -u enterprisedb /usr/edb/as15/bin/pg_upgrade \
+          -d {{ pg_data }} \
+          -D {{ pg_data_15 }} \
+          -b /usr/edb/as{{ pg_version }}/bin \
+          -B /usr/edb/as15/bin \
+          {{ _pg_upgrade_options }} > {{ _pg_upgrade_output_filename }}
+      args:
+        chdir: /tmp
+      register: _time_pg_upgrade_output
+      become: true
+      async: 180000
+      poll: 60
+
+    - name: Save time output
+      ansible.builtin.copy:
+        dest: "{{ _time_pg_upgrade_output_filename }}"
+        content: "{{ _time_pg_upgrade_output.stderr }}"
+      become: true
+
+    - name: Fetch data files
+      ansible.builtin.fetch:
+        src: "{{ item }}"
+        dest: "./benchmark_data/{{ item | basename }}"
+        flat: true
+      loop:
+      - "{{ _pg_upgrade_output_filename }}"
+      - "{{ _time_pg_upgrade_output_filename }}"
+      - "/tmp/tpcc-tables-size.output"

@@ -1,0 +1,28 @@
+---
+- hosts: primary
+  name: Setup EDB repository
+  become: true
+  gather_facts: true
+  collections:
+    - edb_devops.edb_postgres
+  roles:
+    - role: setup_repo
+    - role: install_dbserver
+    - role: init_dbserver
+
+- hosts: primary
+  name: Setup EPAS 15 with TDE
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Install EPAS 15
+      ansible.builtin.package:
+        name: "{{ item }}"
+      loop:
+        - edb-as15-server
+        - edb-as15-server-sslutils
+
+    - name: Install the time package
+      ansible.builtin.package:
+        name: time
