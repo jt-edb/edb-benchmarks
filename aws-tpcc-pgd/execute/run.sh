@@ -24,4 +24,4 @@ ansible-playbook \
 
 
 # Generate charts
-#python3 ${SCRIPT_DIR}/post-processing.py
+python3 ${SCRIPT_DIR}/post-processing.py
