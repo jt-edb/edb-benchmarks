@@ -10,6 +10,8 @@ export ANSIBLE_HOST_KEY_CHECKING=false
 
 # Execute the playbook for each PostgreSQL version
 versions=($(echo $PG_VERSIONS | tr -d '[],'))
+max_version=${versions[0]}
+
 for version in "${versions[@]}"
 do
 	# Execute benchmark
@@ -19,6 +21,7 @@ do
 		-i ${SCRIPT_DIR}/../inventory.yml \
 		-e "@${SCRIPT_DIR}/../vars.yml" \
 		-e "pg_version=${version}" \
+		-e "pg_max_version=${max_version}" \
 		-e "pgbench_mode=${PGBENCH_MODE}" \
 		${SCRIPT_DIR}/playbook-pgbench-run.yml
 done

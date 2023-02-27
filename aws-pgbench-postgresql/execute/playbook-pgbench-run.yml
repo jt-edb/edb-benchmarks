@@ -89,6 +89,7 @@
       become_user: "{{ pg_owner }}"
       environment:
         PG_VERSION: "{{ pg_version }}"
+        PG_MAX_VERSION: "{{ pg_max_version }}"
       async: 180000
       poll: 60
 
