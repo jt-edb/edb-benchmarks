@@ -5,7 +5,7 @@ CLIENT_END=400
 CLIENT_STEP=10
 # Execute pgbench for 20mins
 BENCHMARK_DURATION=1200
-PGSQL_BIN_PATH=/usr/local/pgsql-${PG_VERSION}/bin
+PGSQL_BIN_PATH=/usr/local/pgsql-${PG_MAX_VERSION}/bin
 # Let's make read-write the default mode if no argument is given
 PGBENCH_MODE=${1:-read-write}
 
