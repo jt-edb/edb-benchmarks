@@ -1,0 +1,45 @@
+#!/bin/tclsh
+
+proc runtimer { seconds } {
+	set x 0
+	set timerstop 0
+	while {!$timerstop} {
+		incr x
+		after 1000
+		if { ![ expr {$x % 60} ] } {
+			set y [ expr $x / 60 ]
+			puts "Timer: $y minutes elapsed"
+		}
+		update
+		if {  [ vucomplete ] || $x eq $seconds } { set timerstop 1 }
+	}
+	return
+}
+
+dbset db pg
+diset connection pg_host "{{ infra.servers.databases.tprocc.address }}"
+diset connection pg_port "{{ infra.servers.databases.tprocc.port }}"
+diset tpcc pg_raiseerror true
+diset tpcc pg_defaultdbase "{{ infra.servers.databases.tprocc.username }}"
+diset tpcc pg_superuser "{{ infra.servers.databases.tprocc.username }}"
+diset tpcc pg_superuserpass "{{ infra.servers.databases.tprocc.password }}"
+diset tpcc pg_user "{{ infra.servers.databases.tprocc.username }}"
+diset tpcc pg_pass "{{ infra.servers.databases.tprocc.password }}"
+diset tpcc pg_count_ware {{ tprocc_warehouse }}
+diset tpcc pg_driver timed
+diset tpcc pg_duration {{ tprocc_duration }}
+diset tpcc pg_rampup 15
+diset tpcc pg_timeprofile true
+diset tpcc pg_allwarehouse true
+diset tpcc pg_oracompat true
+diset tpcc pg_storedprocs true
+vuset logtotemp 1
+loadscript
+vuset vu {{ tprocc_vusers }}
+vucreate
+vurun
+runtimer {{ 60 * (15 + tprocc_duration | int) }}
+vudestroy
+after 5000
+
+exit

@@ -1,0 +1,29 @@
+---
+- hosts: hammerdb_driver
+  name: Run TPROC-C
+  become: true
+  gather_facts: true
+
+  collections:
+    - edb_devops.edb_postgres
+
+  tasks:
+    - name: Start TPROC-C
+      ansible.builtin.shell:
+        cmd: ./hammerdbcli tcl auto /home/hammerdb/run.tcl
+      args:
+        chdir: "/home/hammerdb/HammerDB-{{ hammerdb_version }}"
+      environment:
+        ORACLE_HOME: "/usr/lib/oracle/21/client64"
+      become_user: "hammerdb"
+      register: result
+
+    - name: Workload execution output
+      ansible.builtin.debug:
+        var: result
+
+    - name: Fetch HammerDB results file
+      ansible.builtin.fetch:
+        src: "/tmp/hammerdb.log"
+        dest: "./hammerdb.log"
+        flat: true
