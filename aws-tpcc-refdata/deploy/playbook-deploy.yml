@@ -1,0 +1,76 @@
+---
+- hosts: primary
+  name: Setup EDB repository
+  become: true
+  gather_facts: true
+  collections:
+    - edb_devops.edb_postgres
+  roles:
+    - role: setup_repo
+
+- hosts: primary
+  name: Setup Postgres
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Disabling builtin postgresql mode
+      ansible.builtin.command:
+        dnf -qy module disable postgresql
+      when: "pg_type == 'PG'"
+      become: true
+
+    - name: Install packages
+      ansible.builtin.package:
+        name: "{{ item }}"
+      loop: "{{ db_packages }}"
+
+    - name: Make sure data and wal directories do not exist
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - "{{ pg_data }}"
+        - "{{ pg_wal }}"
+
+    - name: Make sure data and wal directories exist
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ pg_owner }}"
+        group: "{{ pg_group }}"
+        mode: 0700
+      loop:
+        - "{{ pg_data }}"
+        - "{{ pg_wal }}"
+
+    - name: Create the instance
+      ansible.builtin.command: >
+        {{ pg_bin_path }}/initdb -D {{ pg_data }} -X {{ pg_wal }}
+      become_user: "{{ pg_owner }}"
+
+    - name: Apply PostgreSQL tunning
+      ansible.builtin.lineinfile:
+        path: "{{ pg_data }}/postgresql.auto.conf"
+        line: "{{ item.name }} = '{{ item.value }}'"
+        create: true
+        owner: "{{ pg_owner }}"
+        group: "{{ pg_group }}"
+      loop: "{{ pg_settings }}"
+      become_user: "{{ pg_owner }}"
+
+    - name: Start the instance
+      ansible.builtin.command: >
+        {{ pg_bin_path }}/pg_ctl -D {{ pg_data }} -l {{ pg_data }}/postgresql.log start
+      become_user: "{{ pg_owner }}"
+
+    - name: Allow TPCC connections on the instance
+      ansible.builtin.lineinfile:
+        path: "{{ pg_data }}/pg_hba.conf"
+        line: "host   all  all  10.0.0.0/24   trust"
+      become_user: "{{ pg_owner }}"
+
+    - name: Restart the instance
+      ansible.builtin.command: >
+        {{ pg_bin_path }}/pg_ctl -D {{ pg_data }} -l {{ pg_data }}/postgresql.log -m immediate restart
+      become_user: "{{ pg_owner }}"

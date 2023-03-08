@@ -1,0 +1,134 @@
+---
+- hosts: primary
+  name: refdata setting
+  become: true
+  gather_facts: true
+
+  collections:
+    - edb_devops.edb_postgres
+
+  tasks:
+    - name: Enable refdata
+      ansible.builtin.lineinfile:
+        path: "{{ pg_data }}/postgresql.auto.conf"
+        line: "shared_preload_libraries = '$libdir/refdata'"
+        create: true
+        owner: "{{ pg_owner }}"
+        group: "{{ pg_group }}"
+      become_user: "{{ pg_owner }}"
+
+    - name: Restart the instance
+      ansible.builtin.command: >
+        {{ pg_bin_path }}/pg_ctl -D {{ pg_data }} -l {{ pg_data }}/postgresql.log -m immediate restart
+      become_user: "{{ pg_owner }}"
+
+    - name: Wait for EPAS to be ready
+      ansible.builtin.command:
+        cmd: >
+          {{ pg_bin_path }}/pg_isready -d postgres -h {{ pg_unix_socket_directories[0] }}
+      become_user: "{{ pg_owner }}"
+      register: pg_isready
+      until: "pg_isready is not failed"
+      retries: 10
+      delay: 10
+
+    - name: Create refdata extension
+      community.postgresql.postgresql_ext:
+        name: "refdata"
+        db: "{{ pg_refdata_database }}"
+        login_user: "{{ pg_user }}"
+        port: "{{ pg_port }}"
+        login_unix_socket: "{{ pg_unix_socket_directories[0] }}"
+      become_user: "{{ pg_owner }}"
+
+    - name: Drop item_refdata if exists
+      community.postgresql.postgresql_query:
+        autocommit: true
+        query: "DROP TABLE IF EXISTS item_refdata"
+        db: "{{ pg_refdata_database }}"
+        login_user: "{{ pg_user }}"
+        port: "{{ pg_port }}"
+        login_unix_socket: "{{ pg_unix_socket_directories[0] }}"
+      become_user: "{{ pg_owner }}"
+
+    - name: Create item_refdata
+      community.postgresql.postgresql_query:
+        autocommit: true
+        query: "CREATE TABLE item_refdata USING refdata AS TABLE item WITH NO DATA"
+        db: "{{ pg_refdata_database }}"
+        login_user: "{{ pg_user }}"
+        port: "{{ pg_port }}"
+        login_unix_socket: "{{ pg_unix_socket_directories[0] }}"
+      become_user: "{{ pg_owner }}"
+
+    - name: Populate item_refdata
+      community.postgresql.postgresql_query:
+        autocommit: true
+        query: "INSERT INTO item_refdata SELECT * FROM item"
+        db: "{{ pg_refdata_database }}"
+        login_user: "{{ pg_user }}"
+        port: "{{ pg_port }}"
+        login_unix_socket: "{{ pg_unix_socket_directories[0] }}"
+      become_user: "{{ pg_owner }}"
+
+    - name: Add pkey on item_refdata
+      community.postgresql.postgresql_query:
+        autocommit: true
+        query: "ALTER TABLE item_refdata ADD PRIMARY KEY (i_id)"
+        db: "{{ pg_refdata_database }}"
+        login_user: "{{ pg_user }}"
+        port: "{{ pg_port }}"
+        login_unix_socket: "{{ pg_unix_socket_directories[0] }}"
+      become_user: "{{ pg_owner }}"
+
+    - name: Drop constraint reference on stock
+      community.postgresql.postgresql_query:
+        autocommit: true
+        query: "ALTER TABLE stock DROP CONSTRAINT fk_stock_item"
+        db: "{{ pg_refdata_database }}"
+        login_user: "{{ pg_user }}"
+        port: "{{ pg_port }}"
+        login_unix_socket: "{{ pg_unix_socket_directories[0] }}"
+      become_user: "{{ pg_owner }}"
+
+    - name: Drop table item
+      community.postgresql.postgresql_query:
+        autocommit: true
+        query: "DROP TABLE item"
+        db: "{{ pg_refdata_database }}"
+        login_user: "{{ pg_user }}"
+        port: "{{ pg_port }}"
+        login_unix_socket: "{{ pg_unix_socket_directories[0] }}"
+      become_user: "{{ pg_owner }}"
+
+    - name: Rename item_refdata to item
+      community.postgresql.postgresql_query:
+        autocommit: true
+        query: "ALTER TABLE item_refdata RENAME TO item"
+        db: "{{ pg_refdata_database }}"
+        login_user: "{{ pg_user }}"
+        port: "{{ pg_port }}"
+        login_unix_socket: "{{ pg_unix_socket_directories[0] }}"
+      become_user: "{{ pg_owner }}"
+
+    - name: Recreate the foreign key on stock
+      community.postgresql.postgresql_query:
+        autocommit: true
+        query: "ALTER TABLE stock ADD CONSTRAINT fk_stock_item FOREIGN KEY (s_i_id) REFERENCES item (i_id);"
+        db: "{{ pg_refdata_database }}"
+        login_user: "{{ pg_user }}"
+        port: "{{ pg_port }}"
+        login_unix_socket: "{{ pg_unix_socket_directories[0] }}"
+      become_user: "{{ pg_owner }}"
+      async: 180000
+      poll: 60
+
+    - name: Change item owner
+      community.postgresql.postgresql_query:
+        autocommit: true
+        query: "ALTER TABLE item OWNER TO tpcc"
+        db: "{{ pg_refdata_database }}"
+        login_user: "{{ pg_user }}"
+        port: "{{ pg_port }}"
+        login_unix_socket: "{{ pg_unix_socket_directories[0] }}"
+      become_user: "{{ pg_owner }}"

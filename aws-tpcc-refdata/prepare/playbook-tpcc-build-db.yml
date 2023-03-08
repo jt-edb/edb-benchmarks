@@ -1,0 +1,124 @@
+---
+- hosts: all
+  name: Populate TPCC database
+  become: true
+  gather_facts: true
+
+  collections:
+    - edb_devops.edb_postgres
+
+  tasks:
+
+    - name: Set foreignkey_ddls
+      ansible.builtin.set_fact:
+        foreignkey_ddls:
+        - "ALTER TABLE district ADD CONSTRAINT fk_district_warehouse FOREIGN
+          KEY (d_w_id) REFERENCES warehouse (w_id);"
+        - "ALTER TABLE customer ADD CONSTRAINT fk_customer_district FOREIGN KEY
+          (c_w_id, c_d_id) REFERENCES district (d_w_id, d_id);"
+        - "ALTER TABLE history ADD CONSTRAINT fk_history_customer FOREIGN KEY
+          (h_c_w_id, h_c_d_id, h_c_id) REFERENCES customer (c_w_id, c_d_id, c_id);"
+        - "ALTER TABLE history ADD CONSTRAINT fk_history_district FOREIGN KEY
+          (h_w_id, h_d_id) REFERENCES district (d_w_id, d_id);"
+        - "ALTER TABLE new_order ADD CONSTRAINT fk_new_order_orders FOREIGN KEY
+          (no_w_id, no_d_id, no_o_id) REFERENCES orders (o_w_id, o_d_id, o_id);"
+        - "ALTER TABLE orders ADD CONSTRAINT fk_orders_customer FOREIGN KEY
+          (o_w_id, o_d_id, o_c_id) REFERENCES customer (c_w_id, c_d_id, c_id);"
+        - "ALTER TABLE order_line ADD CONSTRAINT fk_order_line_orders FOREIGN
+          KEY (ol_w_id, ol_d_id, ol_o_id) REFERENCES orders (o_w_id, o_d_id, o_id);"
+        # HammerDB does not like the following one
+        #- "ALTER TABLE order_line ADD CONSTRAINT fk_order_line_stock FOREIGN
+        #  KEY (ol_supply_w_id, ol_i_id) REFERENCES stock (s_w_id, s_i_id);"
+        - "ALTER TABLE stock ADD CONSTRAINT fk_stock_warehouse FOREIGN KEY
+          (s_w_id) REFERENCES warehouse (w_id);"
+        - "ALTER TABLE stock ADD CONSTRAINT fk_stock_item FOREIGN KEY (s_i_id)
+          REFERENCES item (i_id);"
+
+    - name: Make {{ hammerdb_data_path }} exists
+      ansible.builtin.file:
+        path: "{{ hammerdb_data_path }}"
+        state: directory
+      when: "'hammerdb' in group_names"
+
+    - name: Generate HammerDB loader script
+      ansible.builtin.template:
+        src: loader.tcl.j2
+        dest: "{{ hammerdb_data_path }}/loader.tcl"
+      when: "'hammerdb' in group_names"
+
+    - name: Generate HammerDB loader script for the refdata DB
+      ansible.builtin.template:
+        src: loader.refdata.tcl.j2
+        dest: "{{ hammerdb_data_path }}/loader.refdata.tcl"
+      when: "'hammerdb' in group_names"
+
+    - name: Wait for Postgres to be ready
+      ansible.builtin.command:
+        cmd: >
+          {{ pg_bin_path }}/pg_isready -d postgres -h {{ pg_unix_socket_directories[0] }}
+      become_user: "{{ pg_owner }}"
+      register: pg_isready
+      until: "pg_isready is not failed"
+      retries: 10
+      delay: 10
+      when: "'primary' in group_names"
+
+    - name: Populate the TPCC database
+      ansible.builtin.command:
+        cmd: "./hammerdbcli tcl auto {{ hammerdb_data_path }}/loader.tcl"
+        chdir: "{{ hammerdb_install_path }}"
+      async: 180000
+      poll: 60
+      changed_when: false
+      when: "'hammerdb' in group_names"
+
+    - name: Populate the TPCC database for the refdata DB
+      ansible.builtin.command:
+        cmd: "./hammerdbcli tcl auto {{ hammerdb_data_path }}/loader.refdata.tcl"
+        chdir: "{{ hammerdb_install_path }}"
+      async: 180000
+      poll: 60
+      changed_when: false
+      when: "'hammerdb' in group_names"
+
+    - name: Create foreign keys
+      community.postgresql.postgresql_query:
+        autocommit: true
+        query: "{{ item }}"
+        db: "{{ pg_database }}"
+        login_user: "{{ pg_user }}"
+        port: "{{ pg_port }}"
+        login_unix_socket: "{{ pg_unix_socket_directories[0] }}"
+      become_user: "{{ pg_owner }}"
+      when: "'primary' in group_names"
+      async: 180000
+      poll: 60
+      loop: "{{ foreignkey_ddls }}"
+
+    - name: Create foreign keys on the refdata database
+      community.postgresql.postgresql_query:
+        autocommit: true
+        query: "{{ item }}"
+        db: "{{ pg_refdata_database }}"
+        login_user: "{{ pg_user }}"
+        port: "{{ pg_port }}"
+        login_unix_socket: "{{ pg_unix_socket_directories[0] }}"
+      become_user: "{{ pg_owner }}"
+      when: "'primary' in group_names"
+      async: 180000
+      poll: 60
+      loop: "{{ foreignkey_ddls }}"
+
+    - name: Issuing CHECKPOINT
+      community.postgresql.postgresql_query:
+        autocommit: true
+        query: >-
+          CHECKPOINT
+        db: "{{ pg_database }}"
+        login_user: "{{ pg_user }}"
+        port: "{{ pg_port }}"
+        login_unix_socket: "{{ pg_unix_socket_directories[0] }}"
+      become_user: "{{ pg_owner }}"
+      when: "'primary' in group_names"
+      async: 180000
+      poll: 60
