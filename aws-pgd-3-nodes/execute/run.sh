@@ -13,6 +13,13 @@ ansible-playbook \
 	--private-key ${TERRAFORM_PROJECT_PATH}/ssh-id_rsa \
 	-i ${SCRIPT_DIR}/../inventory.yml \
 	-e "@${SCRIPT_DIR}/../vars.yml" \
+	${SCRIPT_DIR}/playbook-setup-sync-repl.yml
+
+ansible-playbook \
+	-u ${SSH_USER} \
+	--private-key ${TERRAFORM_PROJECT_PATH}/ssh-id_rsa \
+	-i ${SCRIPT_DIR}/../inventory.yml \
+	-e "@${SCRIPT_DIR}/../vars.yml" \
 	-e "tpcc_warehouse=${TPCC_WAREHOUSE}" \
 	-e "tpcc_duration=${TPCC_DURATION}" \
 	-e "tpcc_rampup=${TPCC_RAMPUP}" \
@@ -21,7 +28,3 @@ ansible-playbook \
 	-e "tpcc_step_vusers=${TPCC_STEP_VUSERS}" \
 	-e "terraform_project_path=${TERRAFORM_PROJECT_PATH}" \
 	${SCRIPT_DIR}/playbook-tpcc-run-rampup.yml
-
-
-# Generate charts
-python3 ${SCRIPT_DIR}/post-processing.py

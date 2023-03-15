@@ -1,4 +1,4 @@
-cluster_name: TPCC-PSR-3-nodes
+cluster_name: TPCC-PGD-3-Nodes
 aws:
   ssh_user: rocky
   operating_system:
@@ -33,8 +33,8 @@ aws:
         size_gb: 50
         iops: 5000
         encrypted: false
-    postgres1:
-      type: primary
+    bdr1:
+      type: bdr
       region: us-east-2
       az: us-east-2a
       instance_type: c5d.12xlarge
@@ -43,8 +43,8 @@ aws:
         size_gb: 50
         iops: 5000
         encrypted: false
-    postgres2:
-      type: standby
+    bdr2:
+      type: bdr
       region: us-east-2
       az: us-east-2b
       instance_type: c5d.12xlarge
@@ -53,8 +53,8 @@ aws:
         size_gb: 50
         iops: 5000
         encrypted: false
-    postgres3:
-      type: standby
+    bdr3:
+      type: bdr
       region: us-east-2
       az: us-east-2c
       instance_type: c5d.12xlarge

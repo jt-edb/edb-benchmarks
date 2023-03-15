@@ -1,0 +1,18 @@
+---
+- hosts: bdr
+  name: Configure Postgres HBA
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Allow TPCC connections
+      ansible.builtin.lineinfile:
+        path: "{{ pg_data }}/pg_hba.conf"
+        line: "host  all  all  10.0.0.0/16   trust"
+      become_user: "{{ pg_owner }}"
+
+    - name: Reload epas
+      ansible.builtin.systemd:
+        name: "postgres"
+        state: reloaded
+      become: true

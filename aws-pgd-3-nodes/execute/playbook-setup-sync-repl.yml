@@ -1,0 +1,49 @@
+---
+- hosts: bdr
+  name: Setup synchronous replication
+  gather_facts: false
+  become: true
+
+  collections:
+    - edb_devops.edb_postgres
+
+  tasks:
+
+    - name: Update synchronous_standby_names
+      community.postgresql.postgresql_query:
+        query: >-
+          ALTER SYSTEM SET synchronous_standby_names TO 'ANY 1 (bdr_edb_bdrdb_group_bdr1_bdr3, bdr_edb_bdrdb_group_bdr1_bdr2)'
+        login_user: "{{ pg_user }}"
+        port: 5444
+        login_unix_socket: "{{ pg_login_unix_socket }}"
+        db: "{{ bdr_dbname }}"
+        autocommit: true
+      when: inventory_hostname == 'bdr1'
+      become: true
+      become_user: "{{ pg_owner }}"
+
+    - name: Set synchronous_commit to remote_apply
+      community.postgresql.postgresql_query:
+        query: >-
+          ALTER SYSTEM SET synchronous_commit TO 'remote_apply'
+        login_user: "{{ pg_user }}"
+        port: 5444
+        login_unix_socket: "{{ pg_login_unix_socket }}"
+        db: "{{ bdr_dbname }}"
+        autocommit: true
+      when: inventory_hostname == 'bdr1'
+      become: true
+      become_user: "{{ pg_owner }}"
+
+    - name: Reload Postgres configuration
+      community.postgresql.postgresql_query:
+        query: >-
+          SELECT pg_reload_conf()
+        login_user: "{{ pg_user }}"
+        port: 5444
+        login_unix_socket: "{{ pg_login_unix_socket }}"
+        db: "{{ bdr_dbname }}"
+        autocommit: true
+      when: inventory_hostname == 'bdr1'
+      become: true
+      become_user: "{{ pg_owner }}"
