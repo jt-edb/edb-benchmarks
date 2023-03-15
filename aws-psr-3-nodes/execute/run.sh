@@ -1,57 +1,23 @@
 #!/bin/bash -eux
 
-SSH_USER=cloud-user
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+
+SSH_USER=rocky
 export ANSIBLE_PIPELINING=true
 export ANSIBLE_SSH_PIPELINING=true
 export ANSIBLE_HOST_KEY_CHECKING=false
-export ANSIBLE_PYTHON_INTERPRETER=/usr/bin/python
 
-# Run the benchmark
-# 40 clients
+# Run the ramping up benchmark
 ansible-playbook \
 	-u ${SSH_USER} \
 	--private-key ${TERRAFORM_PROJECT_PATH}/ssh-id_rsa \
-	-i ../inventory.yml \
-	-e "@../vars.yml" \
-	-e "pg_type=${PG_TYPE}" \
-	-e "pg_version=${PG_VERSION}" \
-	-e "pgbench_duration=${PGBENCH_DURATION}" \
-	-e "pg_synchronous_commit=${PG_SYNCHRONOUS_COMMIT}" \
-	-e "pgbench_client=40" \
-	./playbook-pgbench-run.yml
-# 80 clients
-ansible-playbook \
-	-u ${SSH_USER} \
-	--private-key ${TERRAFORM_PROJECT_PATH}/ssh-id_rsa \
-	-i ../inventory.yml \
-	-e "@../vars.yml" \
-	-e "pg_type=${PG_TYPE}" \
-	-e "pg_version=${PG_VERSION}" \
-	-e "pgbench_duration=${PGBENCH_DURATION}" \
-	-e "pg_synchronous_commit=${PG_SYNCHRONOUS_COMMIT}" \
-	-e "pgbench_client=80" \
-	./playbook-pgbench-run.yml
-# 120 clients
-ansible-playbook \
-	-u ${SSH_USER} \
-	--private-key ${TERRAFORM_PROJECT_PATH}/ssh-id_rsa \
-	-i ../inventory.yml \
-	-e "@../vars.yml" \
-	-e "pg_type=${PG_TYPE}" \
-	-e "pg_version=${PG_VERSION}" \
-	-e "pgbench_duration=${PGBENCH_DURATION}" \
-	-e "pg_synchronous_commit=${PG_SYNCHRONOUS_COMMIT}" \
-	-e "pgbench_client=120" \
-	./playbook-pgbench-run.yml
-# 160 clients
-ansible-playbook \
-	-u ${SSH_USER} \
-	--private-key ${TERRAFORM_PROJECT_PATH}/ssh-id_rsa \
-	-i ../inventory.yml \
-	-e "@../vars.yml" \
-	-e "pg_type=${PG_TYPE}" \
-	-e "pg_version=${PG_VERSION}" \
-	-e "pgbench_duration=${PGBENCH_DURATION}" \
-	-e "pg_synchronous_commit=${PG_SYNCHRONOUS_COMMIT}" \
-	-e "pgbench_client=160" \
-	./playbook-pgbench-run.yml
+	-i ${SCRIPT_DIR}/../inventory.yml \
+	-e "@${SCRIPT_DIR}/../vars.yml" \
+	-e "tpcc_warehouse=${TPCC_WAREHOUSE}" \
+	-e "tpcc_duration=${TPCC_DURATION}" \
+	-e "tpcc_rampup=${TPCC_RAMPUP}" \
+	-e "tpcc_min_vusers=${TPCC_MIN_VUSERS}" \
+	-e "tpcc_max_vusers=${TPCC_MAX_VUSERS}" \
+	-e "tpcc_step_vusers=${TPCC_STEP_VUSERS}" \
+	-e "terraform_project_path=${TERRAFORM_PROJECT_PATH}" \
+	${SCRIPT_DIR}/playbook-tpcc-run-rampup.yml

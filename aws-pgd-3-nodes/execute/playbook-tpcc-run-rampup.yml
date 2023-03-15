@@ -1,0 +1,42 @@
+---
+- hosts: hammerdb
+  name: Run HammerDB - rampup test
+  gather_facts: false
+  become: true
+
+  collections:
+    - edb_devops.edb_postgres
+
+  tasks:
+
+    - name: Copy the exec-hdb-rampup.sh file
+      ansible.builtin.copy:
+        src: exec-hdb-rampup.sh
+        dest: "{{ hammerdb_data_path }}/exec-hdb-rampup.sh"
+        mode: "0755"
+
+    - name: Execute the ramping up workload
+      ansible.builtin.shell: >
+       {{ hammerdb_data_path }}/exec-hdb-rampup.sh >> {{ hammerdb_data_path }}/pgd_nopm_catchup_time.csv
+      args:
+        executable: /bin/bash
+      environment:
+        PG_HOST: "{{ hostvars['bdr1'].private_ip }}"
+        HAMMERDB_BIN_PATH: "{{ hammerdb_data_path }}"
+        TPCC_WAREHOUSE: "{{ tpcc_warehouse }}"
+        TPCC_RAMPUP: "{{ tpcc_rampup }}"
+        TPCC_DURATION: "{{ tpcc_duration }}"
+        TPCC_MIN_VUSERS: "{{ tpcc_min_vusers }}"
+        TPCC_MAX_VUSERS: "{{ tpcc_max_vusers }}"
+        TPCC_STEP_VUSERS: "{{ tpcc_step_vusers }}"
+        PG_DBNAME: "{{ bdr_dbname }}"
+      async: 180000
+      poll: 60
+
+    - name: Fetch data files
+      ansible.builtin.fetch:
+        src: "{{ hammerdb_data_path }}/{{ item }}"
+        dest: "./benchmark_data/{{ item }}"
+        flat: true
+      loop:
+      - "pgd_nopm_catchup_time.csv"

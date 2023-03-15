@@ -16,3 +16,10 @@ ansible-playbook \
 	-e "tpcc_warehouse=${TPCC_WAREHOUSE}" \
 	-e "tpcc_loader_vusers=${TPCC_LOADER_VUSERS}" \
 	${SCRIPT_DIR}/playbook-tpcc-build-db.yml
+
+ansible-playbook \
+	-u ${SSH_USER} \
+	--private-key ${TERRAFORM_PROJECT_PATH}/ssh-id_rsa \
+	-i ${SCRIPT_DIR}/../inventory.yml \
+	-e "@${SCRIPT_DIR}/../vars.yml" \
+	${SCRIPT_DIR}/playbook-post-build-db.yml

@@ -60,10 +60,24 @@ if __name__ == '__main__':
     env = parser.parse_args()
 
     servers = load_yaml(env.project_path / 'servers.yml')
+    infra = load_yaml(env.dest / '..' / 'infrastructure.yml')
+    vars = load_yaml(env.dest / '..' / 'vars.yml')
 
-    vardict = dict(
-        servers = servers['servers']['machines']
+    inventory_vardict = dict(
+        servers = servers['servers']['machines'],
+    )
+    config_vardict = dict(
+        servers = servers['servers']['machines'],
+        infra = infra,
+        ssh_priv_key = env.project_path / 'ssh-id_rsa',
+        vars = vars,
+    )
+    creds_vardict = dict(
+        edb_repo_username = os.environ.get('EDB_REPO_USERNAME'),
+        edb_repo_password = os.environ.get('EDB_REPO_PASSWORD'),
     )
 
     # Build the inventory file
-    template('inventory.yml', env.dest / 'inventory.yml', vardict)
+    template('inventory.yml', env.dest / 'inventory.yml', inventory_vardict)
+    template('config.yml', env.dest / 'config.yml', config_vardict)
+    template('edb-repo-creds.txt', env.dest / 'edb-repo-creds.txt', creds_vardict)
