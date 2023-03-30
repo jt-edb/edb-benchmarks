@@ -1,0 +1,36 @@
+---
+all:
+  children:
+    hammerdb:
+      hosts:
+{% for hostname in servers.keys() %}
+{%   if servers[hostname]['type'] == 'hammerdb' %}
+        {{ hostname }}:
+          ansible_host: {{ servers[hostname]['public_ip'] }}
+          private_ip: {{ servers[hostname]['private_ip'] }}
+{%   endif %}
+{% endfor %}
+    primary:
+      hosts:
+{% for hostname in servers.keys() %}
+{%   if servers[hostname]['type'] == 'primary' %}
+        {{ hostname }}:
+          ansible_host: {{ servers[hostname]['public_ip'] }}
+          private_ip: {{ servers[hostname]['private_ip'] }}
+{% endif %}
+{% endfor %}
+    standby:
+      hosts:
+{% for hostname in servers.keys() %}
+{% if servers[hostname]['type'] == 'standby' %}
+        {{ hostname }}:
+          ansible_host: {{ servers[hostname]['public_ip'] }}
+          private_ip: {{ servers[hostname]['private_ip'] }}
+          upstream_node_private_ip: {{ servers['postgres1']['private_ip'] }}
+{%   if hostname == 'postgres2' %}
+          replication_type: synchronous
+{%   else %}
+          replication_type: asynchronous
+{%   endif %}
+{% endif %}
+{% endfor %}
