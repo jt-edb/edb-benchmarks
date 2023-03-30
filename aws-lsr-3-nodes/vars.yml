@@ -1,0 +1,76 @@
+pg_port: 5444
+pg_data: /pgdata/data
+pg_wal: /pgwal/wal
+pg_type: EPAS
+pg_version: 15
+pg_owner: enterprisedb
+pg_user: enterprisedb
+pg_group: enterprisedb
+pg_database: postgres
+pg_tpcc_database: tpcc
+disable_logging: false
+pg_login_unix_socket: "/tmp"
+ssd_disk: true
+enable_edb_repo: true
+pg_unix_socket_directories:
+  - "/tmp"
+pg_service: "edb-as-{{ pg_version }}"
+pg_bin_path: "/usr/edb/as{{ pg_version }}/bin"
+
+hammerdb_version: 4.6
+hammerdb_install_path: "/opt/HammerDB-{{ hammerdb_version }}"
+hammerdb_data_path: /opt/hammerdb-data
+
+pg_settings:
+  - name: listen_addresses
+    value: '*'
+  - name: wal_level
+    value: 'logical'
+  - name: autovacuum_work_mem
+    value: '1GB'
+  - name: checkpoint_completion_target
+    value: '0.93'
+  - name: checkpoint_timeout
+    value: '30min'
+  - name: cpu_tuple_cost
+    value: '0.03'
+  - name: effective_cache_size
+    value: '80GB'
+  - name: effective_io_concurrency
+    value: '200'
+  - name: maintenance_work_mem
+    value: '1GB'
+  - name: max_parallel_maintenance_workers
+    value: '8'
+  - name: max_replication_slots
+    value: '4'
+  - name: max_wal_size
+    value: '200GB'
+  - name: min_wal_size
+    value: '1GB'
+  - name: random_page_cost
+    value: '1.1'
+  - name: shared_buffers
+    value: '16GB'
+  - name: wal_compression
+    value: 'on'
+  - name: wal_buffers
+    value: '64MB'
+  - name: work_mem
+    value: '32MB'
+  - name: max_parallel_workers_per_gather
+    value: '8'
+  - name: shared_preload_libraries
+    value: 'pg_stat_statements'
+  - name: edb_dynatune
+    value: '100'
+  - name: max_worker_processes
+    value: '50'
+  - name: synchronous_commit
+    value: 'remote_apply'
+  - name: 'edb_pg_tuner.autotune'
+    value: 'off'
+  - name: max_logical_replication_workers
+    value: 24
+  - name: max_sync_workers_per_subscription
+    value: 16

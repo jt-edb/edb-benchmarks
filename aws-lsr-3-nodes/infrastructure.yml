@@ -1,0 +1,65 @@
+cluster_name: TPCC-PSR-3-nodes
+aws:
+  ssh_user: rocky
+  operating_system:
+    name: Rocky-8-ec2-8.6-20220515.0.x86_64
+    owner: 679593333241
+  regions:
+    us-east-2:
+      cidr_block: 10.0.0.0/16
+      zones:
+        us-east-2a: 10.0.1.0/24
+        us-east-2b: 10.0.2.0/24
+        us-east-2c: 10.0.3.0/24
+      service_ports:
+        - port: 22
+          protocol: tcp
+          description: "SSH"
+        - port: 5432
+          protocol: tcp
+          description: "PostgreSQL"
+        - port: 5444
+          protocol: tcp
+          description: "EPAS"
+
+  machines:
+    hammerdb:
+      type: hammerdb
+      region: us-east-2
+      az: us-east-2a
+      instance_type: c5.9xlarge
+      volume:
+        type: gp2
+        size_gb: 50
+        iops: 5000
+        encrypted: false
+    postgres1:
+      type: primary
+      region: us-east-2
+      az: us-east-2a
+      instance_type: c5d.12xlarge
+      volume:
+        type: gp2
+        size_gb: 50
+        iops: 5000
+        encrypted: false
+    postgres2:
+      type: standby
+      region: us-east-2
+      az: us-east-2b
+      instance_type: c5d.12xlarge
+      volume:
+        type: gp2
+        size_gb: 50
+        iops: 5000
+        encrypted: false
+    postgres3:
+      type: standby
+      region: us-east-2
+      az: us-east-2c
+      instance_type: c5d.12xlarge
+      volume:
+        type: gp2
+        size_gb: 50
+        iops: 5000
+        encrypted: false

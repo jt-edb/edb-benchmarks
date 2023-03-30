@@ -1,0 +1,48 @@
+---
+- hosts: primary, standby
+  name: Setup repositories
+  become: true
+  gather_facts: true
+  collections:
+    - edb_devops.edb_postgres
+  roles:
+    - role: setup_repo
+
+- hosts: primary
+  name: Install and initialize Postgres
+  become: true
+  gather_facts: true
+  collections:
+    - edb_devops.edb_postgres
+  roles:
+    - role: install_dbserver
+    - role: init_dbserver
+    - role: tuning
+
+- hosts: primary
+  name: Apply Postgres specific tuning
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Apply PostgreSQL tunning
+      ansible.builtin.lineinfile:
+        path: "{{ pg_data }}/postgresql.auto.conf"
+        line: "{{ item.name }} = '{{ item.value }}'"
+        create: true
+        owner: "{{ pg_owner }}"
+        group: "{{ pg_group }}"
+      loop: "{{ pg_settings }}"
+      become_user: "{{ pg_owner }}"
+
+    - name: Allow TPCC connections on the instance
+      ansible.builtin.lineinfile:
+        path: "{{ pg_data }}/pg_hba.conf"
+        line: "host   all  all  10.0.0.0/16   trust"
+      become_user: "{{ pg_owner }}"
+
+    - name: Restart the instance
+      ansible.builtin.systemd:
+        name: "{{ pg_service }}"
+        state: restarted
+      become: true
