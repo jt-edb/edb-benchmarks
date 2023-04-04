@@ -6,7 +6,7 @@ cluster_tags: {}
 cluster_vars:
   bdr_database: edb
   bdr_node_group: bdrgroup
-  bdr_version: '4'
+  bdr_version: '5'
   postgres_data_dir: {{ vars['pg_data'] }}
   postgres_wal_dir: {{ vars['pg_wal'] }}
   postgres_coredump_filter: '0xff'
@@ -51,8 +51,9 @@ cluster_vars:
   pg_systemd_service_path: '/etc/systemd/system/postgres.service'
   pg_systemd_alias: 'edb-as-{{ vars['pg_version'] }}.service'
   preferred_python_version: python3
-  tpa_2q_repositories:
-  - products/bdr4/release
+  edb_repositories:
+  - standard
+  - postgres_distributed
   yum_repository_list:
   - EDB
   - EPEL
